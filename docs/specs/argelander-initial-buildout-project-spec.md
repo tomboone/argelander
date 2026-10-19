@@ -266,6 +266,19 @@ every type that scored. A Target with no Agreement produces a Proposal of type `
 sentence each and are shown verbatim in the review app and copied into Submission
 reference text when relevant.
 
+**Magnitude range** (VSX FAQ): `mag_max` and `mag_min` are the mean magnitudes at
+maximum and minimum read from the binned phase curve of the chosen band after outlier
+rejection, never the brightest and faintest single points. For types whose mean level or
+amplitude changes between cycles (SR, M, L), they are the mean magnitudes of the brightest
+and faintest recorded cycles instead. When the chosen band is a relative-flux source
+(TESS) the Proposal sets `min_is_amplitude` and takes the mean magnitude from Gaia G or
+APASS V. If a blend flag is set, the range is reported uncorrected with the contamination
+stated in Remarks; applying VSX's COMBLEND-style correction is a later improvement.
+
+**Epoch convention** (VSX FAQ): epoch of maximum for pulsators (DSCT, HADS, RRAB, RRC,
+DCEP) and hot-spotted stars; epoch of minimum for eclipsers (EA, EB, EW), ELL and
+dark-spotted ROT stars; SR, L and M carry no epoch unless Agreement is strong.
+
 Thresholds and ranges live in `classify/types.py` and are part of what
 `PIPELINE_VERSION` stamps. Verdict feedback (section 9.3) changes rules by hand; this
 project does not automate that.
@@ -273,8 +286,11 @@ project does not automate that.
 ## 8. Plots
 
 PNG via matplotlib, written to `$PLOTS_DIR/{gaia_source_id}/{pipeline_version}/`:
-`phase-{survey}-{band}.png` (folded at the Proposal period, two cycles, binned median
-overlaid), `periodogram.png` (all bands, candidate and alias markers),
+`phase-{survey}-{band}.png` (folded at the Proposal period with phase 0 at the Proposal
+epoch, binned median overlaid; phase range by type per the VSX FAQ: 0 to 2 for pulsators
+so the maximum is centred, −0.25 to 1.25 for eclipsers and ellipsoidals so the secondary
+eclipse is centred, 0 to 2 for rotational and other types), `periodogram.png` (all bands,
+candidate and alias markers),
 `cmd.png` (Target on a Gaia background drawn from a committed subsample),
 `combined.png` (all surveys' light curves on one time axis, magnitudes brightest at the
 top, each survey in its own marker and colour with a legend, as VSX asks for data-mined
@@ -321,11 +337,23 @@ Rules confirmed from VSX's own submission notice on 2026-10-19
   otherwise state a catalogue mean magnitude (Gaia G or APASS V) plus the amplitude in
   the band observed, with the band always named (ZTF g/r AB, ASAS-SN g, Gaia G).
   Maximum is the brightest (smallest) number.
-- Reference: bibcode where one exists, else URL; the reference block lists each survey
-  used with date ranges and point counts, the Pipeline Version, and the supporting rule
-  explanations.
-- Remarks: anything that fits no field (secondary period, Gaia's own class and period,
-  alias ranking summary, BJD_TDB epoch).
+- Reference: the survey references exactly as the VSX FAQ gives them (name and bibcode
+  table in `docs/reference/vsx-submission-rules.md`), one per survey used, primary survey
+  on the form and the rest added via draft; never a URL when a bibcode exists. The
+  renderer also produces a reference block for Tom's own records listing each survey
+  with date ranges and point counts, the Pipeline Version, and the supporting rule
+  explanations; that block is **not** pasted into Remarks.
+- Remarks: additional information on the star or photometry only (secondary period,
+  Gaia DR3's own class and period, BJD_TDB epoch, blend contamination in the FAQ's
+  shape: `ZTF magnitudes contaminated by Gaia DR3 … (G= 15.2; sep. 1.8"). Range not
+  corrected.`). **No URLs, no references, nothing that belongs in a table field.**
+- Other names: the survey identifiers of the object, one per line, in VSX's canonical
+  formats (`Gaia DR3 <id>`, the ZTF and ASAS-SN identifiers as the surveys publish them;
+  verify the exact ZTF spelling against the VSX Manual before the first Submission).
+- Revision comment: generated from the set of fields that changed and their sources,
+  e.g. `Type, period, epoch and range from ZTF, ASAS-SN and TESS data. Gaia DR3 position.`
+- Uncertain flags are set only on filled fields; irrelevant fields (nova year, spectral
+  type) are never touched.
 - Attachment: **one** file of at most 1 MB on the revision form, so `submission.png` is a
   composite (phase plot above, combined multi-survey light curve below) rendered under
   that limit. More images only by saving a draft and editing it.
