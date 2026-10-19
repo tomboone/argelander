@@ -3,10 +3,10 @@
 Self-hosted pipeline that proposes evidence-backed corrections to the AAVSO VSX
 variable star catalog. Personal project (not business work). Single repo.
 
-- linear_initiative: Argelander
-- linear_team: Neuroticsasquatch
-- linear_repo: argelander
-- specs_dir: docs
+linear_initiative: Argelander
+linear_team: Neuroticsasquatch
+linear_repo: argelander
+specs_dir: docs
 
 ## Design handover
 
