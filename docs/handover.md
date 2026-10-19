@@ -295,8 +295,10 @@ gate is matching published periods on known stars.
 - [x] Submission policy confirmed Oct 2026 (see submission constraints);
       re-checked 2026-10-19 after registering (submission notice captured).
 - [ ] VSX type codes, manual and FAQ: build-order step 1. Registration done
-      2026-10-19; manual, FAQ, type-designations PDF and the revision form's
-      field list still to be read and recorded (NEU-1694).
+      and the revision form captured 2026-10-19
+      (`docs/reference/vsx-revision-form.md`, with the type and passband
+      vocabularies); manual, FAQ and type-designations PDF still to be read
+      (NEU-1694).
 - [ ] TESS source per star (QLP, TGLC, cutout fallback): coverage differs by
       magnitude, so resolve in the prototype, not before.
 
