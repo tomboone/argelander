@@ -263,7 +263,17 @@ class Rule(Protocol):
 DCEP, SR, L, M, ROT, ELL, and `CST` for "not variable"). All of these are confirmed
 against the revision form's type dropdown captured 2026-10-19
 (`docs/reference/vsx-revision-form.md`), and `classify/types.py` carries the full
-dropdown vocabulary so a Proposal can never name a type VSX will not accept. `confidence.py` combines evidence per type
+dropdown vocabulary so a Proposal can never name a type VSX will not accept.
+
+**Type definitions come from VSX's own document**, extracted into
+`docs/reference/vsx-type-ranges.md` (period and amplitude ranges, shape discriminators,
+secondary-minimum rules, epoch convention and rise-duration rule per type). `types.py`
+encodes each as a `TypeSpec`; hard bounds oppose a type outright, soft bounds ("usually")
+weigh about half. The confusion classes that share our period range (DCEPS, CWB/CWA,
+GDOR, SPB, BCEP, SXPHE, RRD, BY, RS, ACV) are scored as well so the evidence can say
+"fits GDOR better than ROT"; a Proposal names a type outside the initial set only as
+`VAR` with that evidence attached. The alias traps VSX names (ASAS-3 `DSCTr` stars being
+EW at 2P; `ELL|DSCT` at P/2) are the P/2P tests in `analysis/aliases.py`. `confidence.py` combines evidence per type
 as (sum of supporting weights − sum of opposing weights) / (sum of all weights), clipped
 to 0–1; the Proposal takes the best-scoring type and keeps the full evidence list for
 every type that scored. A Target with no Agreement produces a Proposal of type `VAR`

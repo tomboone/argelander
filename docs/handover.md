@@ -294,12 +294,13 @@ gate is matching published periods on known stars.
 - [x] Tailnet: personal tailnet via tailscale sidecar.
 - [x] Submission policy confirmed Oct 2026 (see submission constraints);
       re-checked 2026-10-19 after registering (submission notice captured).
-- [ ] VSX type codes, manual and FAQ: build-order step 1. Registration done;
-      submission notice, revision form, FAQ and Manual (2018 PDF) read and
-      captured 2026-10-19 (`docs/reference/vsx-submission-rules.md`,
-      `docs/reference/vsx-revision-form.md`). Still open: the type-designations
-      document (`about.vartypes`) for the definitions behind the rule set
-      (NEU-1694).
+- [x] VSX type codes, manual and FAQ: build-order step 1. Done 2026-10-19:
+      registration, submission notice, revision form, FAQ, Manual (2018 PDF)
+      and the type-designations document all read and captured in
+      `docs/reference/` (`vsx-submission-rules.md`, `vsx-revision-form.md`,
+      `vsx-type-ranges.md`). Two questions remain for the moderators during
+      the first manual submissions: ZTF id spelling in Other names, and
+      PS1-system g/r under the Sloan passband codes.
 - [ ] TESS source per star (QLP, TGLC, cutout fallback): coverage differs by
       magnitude, so resolve in the prototype, not before.
 
