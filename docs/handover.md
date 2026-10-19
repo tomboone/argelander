@@ -96,6 +96,14 @@ rate-limits.
   submitted in one day but moderators review one per person per day (about
   five a week), and the form expects an attached phase plot. Re-check the
   Guidelines page after registering.
+- **Checked 2026-10-19 against the VSX one-time submission notice** (Tom
+  registered; see `docs/reference/vsx-submission-rules.md`): the limit is
+  stated as 5 submissions per week per user, a new user may have only 1
+  submission until it is approved, fewer than 5 drafts are allowed before
+  revising another object, and submissions needing modification or drafts
+  older than 60 days are deleted. Epoch must be HJD; magnitudes preferably in
+  V; do not attach survey-site light curves. The VSX login is separate from
+  the aavso.org account and uses a username.
 - For more than about 4 or 5 stars, VSX guidance prefers a spreadsheet list
   sent to the VSX team. Use this only after individual submissions have built
   a track record.
@@ -285,8 +293,10 @@ gate is matching published periods on known stars.
 - [x] Backup destination: Backblaze B2.
 - [x] Tailnet: personal tailnet via tailscale sidecar.
 - [x] Submission policy confirmed Oct 2026 (see submission constraints);
-      re-check the Guidelines page after registering.
-- [x] VSX type codes, manual and FAQ: build-order step 1.
+      re-checked 2026-10-19 after registering (submission notice captured).
+- [ ] VSX type codes, manual and FAQ: build-order step 1. Registration done
+      2026-10-19; manual, FAQ, type-designations PDF and the revision form's
+      field list still to be read and recorded (NEU-1694).
 - [ ] TESS source per star (QLP, TGLC, cutout fallback): coverage differs by
       magnitude, so resolve in the prototype, not before.
 
