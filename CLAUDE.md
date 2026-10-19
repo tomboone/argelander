@@ -8,11 +8,35 @@ linear_team: Neuroticsasquatch
 linear_repo: argelander
 specs_dir: docs
 
-## Design handover
+## Where things are
 
-`docs/handover.md` is the settled design: scope, data sources, architecture,
-infrastructure, storage budget, design principles and build order. Treat its
-decisions as decided unless Tom reopens them.
+Read in this order when starting work:
+
+1. `docs/handover.md`: the settled design (scope, data sources, architecture,
+   infrastructure, build order). Treat its decisions as decided unless Tom
+   reopens them.
+2. `docs/specs/argelander-initial-buildout-project-spec.md`: the project-wide
+   spec every ticket is built from (package layout, schema, light-curve
+   contract, analysis order, classifier, review app, infra, testing).
+3. `CONTEXT.md`: the glossary. Use its terms in code, tables and templates.
+4. `docs/adr/`: decisions that are hard to reverse and would look odd without
+   context (manual VSX submission; Postgres as the job queue).
+5. `docs/reference/`: VSX's own rules, captured 2026-10-19 after Tom registered.
+   These override anything in the handover or spec that disagrees with them.
+   - `vsx-submission-rules.md`: the submission notice, FAQ and Manual rules
+     (rate limits, epoch in HJD, passbands, contamination radii, survey
+     bibcodes, precision, remarks and revision-comment rules).
+   - `vsx-revision-form.md`: every field on the revision form by `name`, the
+     type dropdown vocabulary and the passband vocabulary.
+   - `vsx-type-ranges.md`: period, amplitude and shape definitions per type;
+     the source for `classify/types.py` and the rules.
+   - `Manual.pdf` is gitignored (AAVSO copyright); Tom has a local copy.
+
+Linear: initiative "Argelander", project "Argelander: Initial Buildout"
+(P-NEU-98). Tickets NEU-1694..1735 carry dated "Update" blocks where the
+VSX sources changed them; the spec is the merged result.
+
+## Design handover
 
 Decisions made after the handover was written (2026-10-19):
 

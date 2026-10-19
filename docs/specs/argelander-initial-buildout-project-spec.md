@@ -3,7 +3,10 @@
 **Linear project:** Argelander: Initial Buildout (P-NEU-98), initiative Argelander (I-10)
 **Repo:** `tomboone/argelander` (single repo)
 **Design source:** `docs/handover.md` (settled design), `CONTEXT.md` (glossary), `docs/adr/` (decisions),
-`docs/reference/vsx-submission-rules.md` (VSX's own rules, captured 2026-10-19)
+and VSX's own rules captured 2026-10-19 in `docs/reference/`: `vsx-submission-rules.md`
+(notice, FAQ, Manual), `vsx-revision-form.md` (form fields and vocabularies),
+`vsx-type-ranges.md` (type definitions). Where this spec and the reference disagree, the
+reference wins and the spec is wrong.
 **Written:** 2026-10-19, from the `/projectit` Phase 1 grilling session; amended the same day
 after Tom registered with VSX and read the submission notice
 
