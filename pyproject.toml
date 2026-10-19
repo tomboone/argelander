@@ -1,0 +1,52 @@
+[project]
+name = "argelander"
+version = "0.1.0"
+description = "Proposes evidence-backed corrections to the AAVSO VSX variable star catalog"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic-settings>=2.6",
+    "typer>=0.15",
+]
+
+[project.scripts]
+argelander = "argelander.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.14"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+# ruff formats Python fences inside Markdown; the spec's illustrative snippets are prose.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade: enforces `X | None` over Optional (UP007, UP045)
+    "B",   # bugbear
+    "TID", # tidy imports: bans `from __future__ import annotations` below
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations" = { msg = "Do not use `from __future__ import annotations`; write real `X | None` hints." }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+    "live: hits external archives (ZTF, MAST, Gaia, ASAS-SN); skipped in CI with -m 'not live'",
+]
