@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Data: light-curve cache, plots, reference catalogs live on the USB SSD, not in git
+data/
+cache/
+plots/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
