@@ -145,6 +145,77 @@ v1. The revision form takes one reference; add the others by saving a draft and 
 - Help: the AAVSO VSX Forum (needs an aavso.org website account, which Tom has).
 - AUIDs are not needed for revisions.
 
+## From the VSX Manual (PDF, last modified 2018-11-05; read 2026-10-19)
+
+Source: "AAVSO manual for submitting data on VSX" (Gonzalez Carballo, Hinzel, Murawski,
+Otero, Wils, Kafka). Kept locally as `docs/reference/Manual.pdf`, gitignored (18 MB,
+AAVSO copyright). Where it conflicts with the 2026 submission notice (one per day vs
+5 per week; Gaia DR2 vs EDR3), the notice wins.
+
+### Precision
+
+- Magnitudes: one decimal for Miras, CVs, RCB and any star whose mean level varies
+  between cycles; two decimals for most stars; three only for very small amplitudes with
+  remarkably good photometry (Kepler-class).
+- Epoch: an integer is enough for long-period Miras; four decimals are justified only for
+  very short periods with good photometry.
+- Period: in days, significant digits only, matched to the baseline and the type (a Mira
+  with period jitter does not get several decimals).
+
+### Rise/eclipse duration field
+
+- Eclipsing binaries: the duration of primary minimum from first to last contact as a
+  percentage of the period. **Applies to EA only**; it cannot be determined for EW and EB,
+  where changes are continuous.
+- Other variables: the time from minimum to maximum as a percentage of the period.
+  **Required for asymmetric pulsators** (RR Lyrae, Cepheids, HADS). Not needed for
+  sinusoidal DSCT, other sinusoidal variables, or spotted stars whose shape changes.
+
+### Epoch convention (Manual wording)
+
+Epoch of maximum for pulsating stars (except RV Tauri and LSP SR variables), reflection
+variables and magnetic variables; epoch of minimum for eclipsing binaries, rotational
+variables, ellipsoidal variables and RV Tauri stars.
+
+### Identifiers
+
+- "Please do not use Gaia DR2 names unless there is no other identifier available." Prefer
+  2MASS, UCAC4, GSC2.3, USNO-B1.0 for faint stars; bright stars take HD, SAO, CPD, CD, BD,
+  HIP, PPM, TYC, GSC in that order of priority.
+- Always give the survey's own identification of the object (`NSVS 123456`,
+  `ASAS J123456-7840.1`). The Manual predates ZTF and does not say how ZTF object ids are
+  spelled in Other names; ask the moderators during the first manual submissions.
+- Type notation: `:` uncertain; `|` logical OR (`ELL|DSCT`); `+` logical AND (`ELL+DSCT`);
+  `/` subtype (`EA/SD`). Compound types go in the custom type box.
+
+### Range and plots (Manual wording)
+
+- For Miras and other stars with varying mean magnitude, determine mean magnitudes of
+  the brightest and faintest individual cycles.
+- Phase 0 at the table epoch; align ascending and descending branches of all datasets so
+  the epoch of minimum sits at mid-eclipse.
+- Composite plots of several surveys must make the surveys distinguishable; where no VSX
+  link-out exists for a survey, attach its data or give a URL.
+- Tabular data may be included alongside plots but never instead of them.
+
+### Moderation workflow
+
+- Requested changes are made through "My submissions", which opens an editing form.
+- Keep intermediate edits as "Draft only" so moderators are not notified on every save;
+  submit once when done.
+- When uploading an improved version of a file, tick the delete box on the previous one
+  first.
+- References must match the format exactly (commas, periods) or the submission is held
+  at the reviewing stage: `Lee, J.; et al., 2016, KIC6220497: A New Algol-type Eclipsing
+  Binary with Multiperiodic Pulsations` / `2016MNRAS.460.4220L` /
+  `https://adsabs.harvard.edu/abs/2016MNRAS.460.4220L`.
+- The New Star Wizard's Spot check reports VSX entries within 120″.
+
+### Transformed V (Appendix 3)
+
+When no APASS or ASAS V exists: `V = 0.531 (J−K) + 0.906 UCAC3f + 0.95`,
+`V = 0.529 (J−K) + 0.9166 UCAC3a + 0.83`, `V = 0.6278 (J−K) + 0.9947 CMC15 r'`.
+
 ## Implications recorded in the spec on 2026-10-19
 
 - M3 submits one revision, waits for approval, then the remaining one or two.
@@ -162,3 +233,10 @@ v1. The revision form takes one reference; add the others by saving a draft and 
 - Survey references are constants in the form renderer; Remarks never carry references
   or table values; the Revision comment is generated from the list of changed fields and
   their sources.
+- The renderer rounds magnitudes, period and epoch per the Manual's precision rules by
+  type and baseline; `riseDur` is eclipse duration for EA only and rise duration for
+  RRAB, RRC, DCEP and HADS, blank otherwise.
+- Other names lead with 2MASS/UCAC4 cross-ids (fetched via Gaia DR3's best-neighbour
+  tables in the catalog join), then the ZTF and ASAS-SN ids, with the Gaia DR3 id last.
+- The tracker documents the "needs modification" workflow: edit via My submissions as a
+  draft, delete the old file before uploading, submit once.

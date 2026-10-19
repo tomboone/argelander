@@ -26,3 +26,6 @@ plots/
 
 # OS
 .DS_Store
+
+# Reference PDFs (AAVSO copyright, large); keep local copies only
+docs/reference/*.pdf

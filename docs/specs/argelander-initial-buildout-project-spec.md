@@ -209,6 +209,11 @@ G of sources within 120″, so each survey's blend risk can be judged against it
 aperture. Survey useful ranges: ZTF g/r 13–21, ASAS-SN V 10–16.5, Gaia G 5–21, TESS
 roughly 2–15. The 13–16 mag Slice sits inside all of them.
 
+The same catalog join also returns the 2MASS designation via
+`gaiadr3.tmass_psc_xsc_best_neighbour` joined to `gaiadr1.tmass_original_valid`, and the
+UCAC4 id when a Gaia-hosted cross-match exists, because VSX prefers those over Gaia
+names in Other names (Manual, §IV.a and §V.b).
+
 ## 6. Analysis
 
 Order of operations in `analysis/worker.py` for one Target:
@@ -347,9 +352,12 @@ Rules confirmed from VSX's own submission notice on 2026-10-19
   Gaia DR3's own class and period, BJD_TDB epoch, blend contamination in the FAQ's
   shape: `ZTF magnitudes contaminated by Gaia DR3 … (G= 15.2; sep. 1.8"). Range not
   corrected.`). **No URLs, no references, nothing that belongs in a table field.**
-- Other names: the survey identifiers of the object, one per line, in VSX's canonical
-  formats (`Gaia DR3 <id>`, the ZTF and ASAS-SN identifiers as the surveys publish them;
-  verify the exact ZTF spelling against the VSX Manual before the first Submission).
+- Other names: one per line, in VSX's canonical formats, in this order: the 2MASS and
+  UCAC4 cross-ids (the Manual discourages Gaia names when any other identifier exists),
+  then the ZTF and ASAS-SN identifiers as the surveys publish them, then `Gaia DR3 <id>`.
+  Only identifiers not already on the VSX record are added. The exact spelling VSX wants
+  for ZTF object ids is not documented anywhere we have read; the first manual
+  Submissions (M3) ask the moderators and the answer is recorded here.
 - Revision comment: generated from the set of fields that changed and their sources,
   e.g. `Type, period, epoch and range from ZTF, ASAS-SN and TESS data. Gaia DR3 position.`
 - Uncertain flags are set only on filled fields; irrelevant fields (nova year, spectral
@@ -372,7 +380,16 @@ VSX has them. Consequences:
 - `varType` must be one of the dropdown codes; compound types go in `custVarType`.
   `varTypeUnc` is set when the Proposal's `uncertain` flag is true (Confidence below the
   threshold in `classify/types.py`), which is VSX's `:` suffix.
-- `riseDur` (eclipse duration as % of period) is filled for EA/EB from the BLS fit.
+- `riseDur` follows the Manual: for EA it is the primary-eclipse duration, first to last
+  contact, as % of period, from the BLS fit; never for EW or EB. For asymmetric pulsators
+  (RRAB, RRC, DCEP, HADS) it is the rise time from minimum to maximum as % of period,
+  from the binned phase curve. Blank for every other type.
+- Precision (Manual): magnitudes to 1 decimal for SR, L, M and any star whose mean level
+  changes between cycles, 2 decimals otherwise, 3 only when the amplitude is below
+  0.05 mag and the scatter supports it; epoch to the number of decimals the period
+  resolution supports (integer for long-period M, up to 4 for sub-day periods); period to
+  the significant digits the baseline supports (a `period_sigfigs` helper from baseline
+  length and period uncertainty).
 - `comment` (Revision comment, required, public) is one generated sentence naming the
   surveys used and what changed.
 - Position is `HH MM SS.ss ±DD MM SS.s` from Gaia DR3.
@@ -386,6 +403,12 @@ deleted with one week's notice. The tracker enforces the one-open rule until the
 `accepted` Verdict exists, shows the weekly count against 5, recommends the next
 Submission by Confidence, and warns at 45 days for any `submitted` item still without a
 Verdict so Tom can respond to moderator requests before deletion.
+
+A Submission whose moderator asks for changes gets status `needs_changes` in the tracker
+(between `submitted` and a Verdict), and the detail page shows the Manual's workflow for
+it: open the star under "My submissions" on VSX, make edits as "Draft only" so moderators
+are not notified per save, tick the delete box on the old file before uploading a new
+`submission.png`, then submit once.
 
 ### 9.3 Verdict feedback
 
