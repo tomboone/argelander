@@ -105,7 +105,7 @@ tests/                 pytest; tests/fixtures/*.parquet (section 11)
 notebooks/             prototype notebooks; import from argelander, never define science here
 compose.yaml           prod stack (section 10); compose.dev.yaml adds jupyter and dev mounts
 Dockerfile             python:3.12-slim, uv, non-root
-Taskfile.yml           go-task: up, down, test, lint, format, migrate, deploy, backup:check
+Taskfile.yml           go-task: up, down, shell, hooks, test, lint, format, typecheck, migrate, deploy, backup:check
 deploy/                fstab line, systemd override, tailscale sidecar notes, restore drill
 ```
 
@@ -487,6 +487,18 @@ Conventional commits with the Linear ID parenthetical; one ticket = one PR to `m
 Stage files by name. Secrets only in `.env` (gitignored) and the mini's Compose env. No
 third-party API call in a request path of the review app: it reads Postgres and the plot
 directory only.
+
+Repository hygiene follows the pattern shared by the other neuroticsasquat-ch repos
+(added 2026-10-19, built by NEU-1736). Three GitHub rulesets, created through the API
+rather than files: `main` cannot be deleted or force-pushed and accepts only PRs merged as
+merge commits; `release/*` and `updates/*` cannot be force-pushed and accept PRs merged by
+squash or merge; `updates/*` cannot be deleted. Dependabot runs weekly (Saturday 09:00
+New York) on the `uv` and `github-actions` ecosystems, grouped minor-and-patch, targeting
+the long-lived `updates/dependencies` branch with `build` and `ci` commit prefixes. A weekly
+workflow merges `main` into `updates/dependencies` through a PR so Dependabot diffs stay
+small; Tom opens the PR from `updates/dependencies` back to `main` when he chooses. CI runs
+on PRs to both branches. The rulesets are the reason every change, including a docs edit,
+lands through a PR.
 
 ## 13. Milestones (confirmed in Phase 2)
 
