@@ -1,0 +1,56 @@
+version: "3"
+
+# Docker-only local dev: every tool runs in the `app` container, as the pre-commit hooks do.
+# `deploy` and `backup:check` arrive with the prod stack (NEU-1723).
+dotenv: [".env"]
+
+vars:
+  COMPOSE: docker compose -f compose.yaml -f compose.dev.yaml
+  EXEC: docker compose exec -T app
+
+tasks:
+  up:
+    desc: Build and start the dev stack (postgres, app, jupyter), then install the git hooks
+    cmds:
+      - "{{.COMPOSE}} up --detach --build --wait"
+      - task: hooks
+      - 'echo "JupyterLab: http://localhost:${JUPYTER_PORT:-8888}/lab"'
+
+  down:
+    desc: Stop the dev stack (the postgres volume is kept)
+    cmd: "{{.COMPOSE}} down"
+
+  shell:
+    desc: Open a shell in the app container
+    cmd: "{{.COMPOSE}} exec app bash"
+
+  hooks:
+    desc: Install the pre-commit and pre-push hooks (the framework is the host's pre-commit)
+    preconditions:
+      - sh: command -v pre-commit
+        msg: "pre-commit is not installed on the host: brew install pre-commit"
+    cmd: pre-commit install --hook-type pre-commit --hook-type pre-push
+
+  test:
+    desc: "Run the offline tests (usage: task test -- [pytest args])"
+    cmd: '{{.EXEC}} pytest -m "not live" {{.CLI_ARGS}}'
+
+  lint:
+    desc: Lint and check formatting, as CI does
+    cmds:
+      - "{{.EXEC}} ruff check"
+      - "{{.EXEC}} ruff format --check"
+
+  format:
+    desc: Apply ruff's lint fixes and formatting
+    cmds:
+      - "{{.EXEC}} ruff check --fix"
+      - "{{.EXEC}} ruff format"
+
+  typecheck:
+    desc: Typecheck with ty
+    cmd: "{{.EXEC}} ty check"
+
+  migrate:
+    desc: Apply database migrations (placeholder until Alembic arrives with NEU-1713)
+    cmd: echo "No migrations yet; Alembic arrives with NEU-1713."

@@ -1,0 +1,42 @@
+# Dev stack: `docker compose -f compose.yaml -f compose.dev.yaml`, wrapped as `task up`.
+# Ports bind to 127.0.0.1 only. Postgres defaults to 5433 on the host because the shared
+# localdev Postgres already holds 5432.
+x-dev-database-url: &dev-database-url
+  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-argelander}@postgres:5432/argelander}
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-argelander}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  # Stays up so tasks and the pre-commit hooks can exec into it. The whole repo is mounted,
+  # not only src/: the hooks pass repo-relative paths and ruff writes its fixes back through
+  # the mount. The editable install in /opt/venv points at /app/src, so edits are live.
+  app:
+    build:
+      target: dev
+    image: argelander:dev
+    init: true
+    command: ["sleep", "infinity"]
+    environment: *dev-database-url
+    volumes:
+      - .:/app
+
+  jupyter:
+    build:
+      context: .
+      target: jupyter
+    image: argelander:jupyter
+    init: true
+    environment: *dev-database-url
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./src:/app/src
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
+    depends_on:
+      postgres:
+        condition: service_healthy

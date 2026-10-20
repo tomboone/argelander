@@ -1,0 +1,30 @@
+# Service definitions shared by every environment. compose.dev.yaml layers the dev stack on
+# top (`task up`); the prod services, USB mounts and memory limits arrive with NEU-1723.
+# No credentials here (spec §12): the dev file supplies dev ones, prod reads its Compose env.
+name: argelander
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: argelander
+      POSTGRES_DB: argelander
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argelander -d argelander"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      target: prod
+    image: argelander:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

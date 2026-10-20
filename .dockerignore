@@ -1,0 +1,17 @@
+# The image copies only pyproject.toml, uv.lock, README.md and src/; keep the build context
+# small and free of secrets and local data.
+.git
+.github
+.idea
+.vscode
+.venv
+.env
+.env.*
+data
+docs
+notebooks
+tests
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.ipynb_checkpoints

@@ -60,6 +60,4 @@ jobs:
           fi
 
       - name: Docker build
-        # Skips until NEU-1696 adds the Dockerfile.
-        if: hashFiles('Dockerfile') != ''
         run: docker build --tag argelander:ci .
