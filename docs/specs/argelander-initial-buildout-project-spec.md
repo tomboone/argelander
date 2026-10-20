@@ -201,6 +201,15 @@ deleted in the same job that extracted the light curve.
   `quality == 0`. The TESS photometric aperture is ~120″, so TESS data for a Target with
   a comparably bright Gaia neighbour inside that radius is flagged `tess_contaminated`
   and carries reduced weight in Agreement.
+
+  *Amended 2026-10-19 (NEU-1702):* only SPOC (and TESS-SPOC, the same pipeline on
+  full-frame images, preferred last) publishes PDCSAP. QLP's KSPSAP and TGLC's `cal_*`
+  fluxes are detrended for transit searches and erase variable-star signals, so `value`
+  is QLP's `sap_flux` and TGLC's `psf_flux`, with `meta["sap"]` holding QLP's `sap_flux`
+  and TGLC's `aperture_flux`. A cutout's simple aperture flux fills both. The winning
+  author's sectors are the only ones kept, so `meta["source"]` names one pipeline per
+  Target. Prebuilt products are downloaded to the same temporary directory as cutouts and
+  deleted with it.
 - **Gaia DR3 epoch photometry** (DataLink, `Gaia.load_data(..., retrieval_type=
   "EPOCH_PHOTOMETRY")`): G, BP, RP per transit; drop `rejected_by_photometry` and
   `rejected_by_variability`. Fetched per Slice in batches of IDs, not per star.
