@@ -1,0 +1,40 @@
+version: 2
+
+# Weekly, grouped, into the long-lived updates/dependencies branch (spec §12). The
+# merge-main-into-dependencies workflow catches that branch up with main one to two hours
+# earlier (12:00 UTC; 09:00 New York is 13:00 UTC in summer, 14:00 in winter).
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+      timezone: America/New_York
+    target-branch: updates/dependencies
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+      timezone: America/New_York
+    target-branch: updates/dependencies
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
