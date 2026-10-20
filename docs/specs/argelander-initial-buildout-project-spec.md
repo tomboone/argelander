@@ -111,8 +111,15 @@ deploy/                fstab line, systemd override, tailscale sidecar notes, re
 
 ### 3.2 Stack
 
-Python 3.12. uv + `pyproject.toml`, ruff (lint + format). Type hints `X | None`, never
-`Optional`. No `from __future__ import annotations`. Typer for the CLI. SQLAlchemy 2 +
+Python 3.12. uv + `pyproject.toml`, ruff (lint + format), ty (type checking). Type hints
+`X | None`, never `Optional`. No `from __future__ import annotations`. Typer for the CLI.
+
+ty was chosen on 2026-10-19 over mypy and pyright: it is Astral's checker, so it fits the
+uv + ruff stack and runs fast enough for a hook, and pyright would pull a Node runtime into
+a Node-free repo. ty is pre-1.0, so `unresolved-import` is silenced per module for the
+thinly typed astronomy libraries (astropy, astroquery, lightkurve), never globally. If the
+beta blocks real code with false positives, the fallback is mypy, recorded here as an
+amendment rather than swapped silently. SQLAlchemy 2 +
 Alembic on psycopg 3 (sync in workers, async in FastAPI). astropy, astroquery,
 lightkurve, pyarrow, numpy, matplotlib, FastAPI, Jinja2, htmx (vendored static file).
 pydantic-settings for config. structlog or stdlib logging to stdout as JSON lines. No
@@ -462,9 +469,15 @@ from the grilling session:
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.
-- GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `pytest
-  -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
-- Pre-commit runs ruff format + check; commit normally.
+- GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
+  `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
+  CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
+- Pre-commit in two stages. At commit: ruff in fix mode plus ruff format, installed on the
+  host with Homebrew (pre-commit's own hook cache, not a project venv, so the Docker-only
+  rule holds). At push: `task typecheck` and `task test`, which run ty and the offline
+  pytest suite inside the app container, because both need the project's installed
+  dependencies. Hooks fix rather than only check, so a failed commit is one `git add` from
+  passing. Commit normally.
 
 ## 12. Conventions
 
