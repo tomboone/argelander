@@ -82,6 +82,7 @@ src/argelander/
     time.py            every survey → BJD_TDB
     clean.py           survey quality flags → cleaned LightCurve
     periodogram.py     Lomb-Scargle per band + BoxLeastSquares
+    model.py           Analysis, PeriodogramResult, Peak: plain dataclasses M4 maps to the ORM
     aliases.py         P, 2P, P/2, 1 d, 0.5 d, sidereal-day, TESS 13.7 d tests
     agreement.py       the Agreement rule
     blend.py           Gaia neighbours within a few arcsec
@@ -288,10 +289,26 @@ Order of operations in `analysis/worker.py` for one Target:
    ASAS-SN agree within 0.05 s.
 3. **Clean** (`clean.py`): drop flagged points, sigma-clip at 5σ around a running median,
    require ≥ 30 points per band to proceed.
+
+   *Amended 2026-10-20 (NEU-1706):* the running median is taken over the two points either
+   side of each point, leaving the point itself out, and a point is judged only when those
+   four neighbours lie within ±0.005 d of it. In practice only TESS 120 s and 200 s data
+   are clipped. ZTF, ASAS-SN, Gaia and TESS full-frame-image Light Curves are cleaned by
+   their survey flags alone, because their neighbours are too far apart in phase for a
+   median to stand for the star's level, and every point in an eclipse or at a pulsation's
+   extreme would be clipped as an outlier.
 4. **Periodogram** (`periodogram.py`): astropy `LombScargle` per band over 0.05–100 d
    (grid oversampled ×10), plus astropy `BoxLeastSquares` over 0.1–30 d for eclipsers.
    Record the top five peaks with power and false-alarm probability per band. Gaia's
    published `vari_*` period is the first hypothesis: it is always scored and plotted.
+
+   *Amended 2026-10-20 (NEU-1706):* BLS needs a far finer grid than Lomb-Scargle's ×10,
+   which smears eclipses under a few per cent of the cycle. Its step keeps the fold's drift
+   across the baseline under half the narrowest box (0.01 d) at short periods and under
+   half a 1 % duty-cycle eclipse at long ones. BLS peaks carry no false-alarm probability.
+   The Gaia period's Lomb-Scargle FAP is the single-frequency one, since the period was
+   chosen before the search. When the secondary eclipse is deeper than about 0.4 of the
+   primary, BLS also folds at P/2, and the alias step has to settle the period.
 5. **Aliases** (`aliases.py`): for each candidate test P, 2P, P/2 and the 1 d, 0.5 d and
    sidereal-day (0.99727 d) aliases; for TESS also 13.7 d orbital systematics. Prefer the
    candidate whose phase-folded scatter is lowest and record the ranking.
