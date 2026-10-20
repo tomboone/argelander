@@ -342,9 +342,28 @@ Order of operations in `analysis/worker.py` for one Target:
    120″ is brighter than G + 1 or the summed flux of neighbours within 120″ exceeds half
    the Target's. Contaminated surveys still run through the periodogram but count at half
    weight in Agreement and are labelled on every plot.
+
+   *Amended 2026-10-20 (NEU-1708):* the result is one `Contamination` per contaminated
+   survey, so `blend_suspect` yields a ZTF and a Gaia entry, except that ZTF oid offsets
+   alone flag ZTF only. Each carries the offending neighbours, the Remarks sentence in the
+   VSX FAQ's shape (`<survey> magnitudes contaminated by Gaia DR3 <id> (G= <mag>; sep.
+   <arcsec>"). Range not corrected.`, G and separation to one decimal) and the share of the
+   aperture's light from every other source inside the radius, for a later COMBLEND-style
+   correction. The 120″ TESS field reaches past the 20″ neighbour list, so TESS names the
+   field's count, brightest G and combined G instead of a neighbour. Half weight means a
+   contaminated source counts 0.5 towards Agreement's two sources, and towards the "most
+   sources" comparison between periods.
 8. **CMD** (`cmd.py`): absolute G from parallax when `parallax / parallax_error > 5`,
    BP−RP; record the position and the nearest classical instability-strip or
    main-sequence region label.
+
+   *Amended 2026-10-20 (NEU-1708):* the label is one of main sequence, giant branch,
+   instability strip, white dwarf or unknown, from fixed (BP−RP, M_G) polygons in
+   `classify/types.py` drawn around the Gaia DR2 HR diagram, in observed colours. The
+   polygons overlap and are tried in order (white dwarf, instability strip, main sequence,
+   giant branch), so a δ Scuti star on the upper main sequence is labelled instability
+   strip. Without a significant parallax or a colour the region is unknown. Extinction
+   correction is a later improvement.
 9. Write the `analyses` row; hand off to `classify.propose` and `plots`.
 
 ## 7. Classifier

@@ -108,3 +108,32 @@ def test_agreement_does_not_chain_past_a_tenth_of_a_percent() -> None:
     # Either neighbouring pair agrees; all three never do, the outer two being 0.17 % apart.
     assert found is not None
     assert len(found.agreed_sources) == 2
+
+
+def test_a_contaminated_survey_counts_as_half_a_source() -> None:
+    pair = [settled("ztf", "g", 0.6), settled("tess", "T", 0.6)]
+
+    assert agreement(pair, contaminated={"tess"}) is None
+    found = agreement([*pair, settled("ztf", "r", 0.6)], contaminated={"tess"})
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "ztf_r", "tess")
+
+
+def test_a_contaminated_gaia_period_counts_as_half_a_source() -> None:
+    assert agreement([settled("ztf", "r", 0.6)], gaia_period=0.6, contaminated={"gaia"}) is None
+
+
+def test_contaminated_sources_weigh_less_against_clean_ones_at_another_period() -> None:
+    # Three sources at 0.6 d against two at 1.7 d; contaminating two of the three makes it
+    # 2.0 against 2.0, a tie.
+    votes = [
+        settled("tess", "T", 0.6),
+        settled("asassn", "V", 0.6),
+        settled("ztf", "g", 0.6),
+        settled("ztf", "r", 1.7),
+    ]
+
+    found = agreement(votes, gaia_period=1.7)
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "asassn", "tess")
+    assert agreement(votes, gaia_period=1.7, contaminated={"tess", "asassn"}) is None

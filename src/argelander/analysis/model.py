@@ -9,8 +9,12 @@ from typing import Literal
 
 import numpy as np
 
+from argelander.catalog.gaia import Neighbour
+
 Method = Literal["lomb_scargle", "bls"]
 Relation = Literal["1:1", "2:1"]
+BlendFlag = Literal["blend_suspect", "asassn_contaminated", "tess_contaminated"]
+Region = Literal["main_sequence", "giant_branch", "instability_strip", "white_dwarf", "unknown"]
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,50 @@ class Agreement:
     relation: Relation  # "2:1" when some sources found half `agreed_period`
 
 
+@dataclass(frozen=True)
+class Contamination:
+    """One survey's photometry of a Target is contaminated by sources inside its aperture."""
+
+    survey: str  # "ztf" | "gaia" | "asassn" | "tess", as in `LightCurve.survey`
+    flag: BlendFlag  # the flag that covers it; `blend_suspect` covers both ZTF and Gaia
+    # The Gaia neighbours that set the flag, nearest first. Empty for TESS, whose aperture
+    # reaches past the 20″ neighbour list, and for ZTF flagged by its zero-point offsets alone.
+    neighbours: tuple[Neighbour, ...]
+    # The share of the light measured in the aperture that comes from other sources, for a
+    # COMBLEND-style range correction; None when it cannot be estimated.
+    flux_fraction: float | None
+    remark: str  # one sentence for VSX's Remarks, in the shape the VSX FAQ gives
+
+
+@dataclass(frozen=True)
+class Blend:
+    """The per-survey blend checks for one Target (spec §6 step 7)."""
+
+    contaminations: tuple[Contamination, ...]  # one per contaminated survey
+
+    @property
+    def flags(self) -> frozenset[BlendFlag]:
+        return frozenset(c.flag for c in self.contaminations)
+
+    @property
+    def surveys(self) -> frozenset[str]:
+        """The contaminated surveys, which count at half weight in Agreement."""
+        return frozenset(c.survey for c in self.contaminations)
+
+    def remark(self, survey: str) -> str | None:
+        return next((c.remark for c in self.contaminations if c.survey == survey), None)
+
+
+@dataclass(frozen=True)
+class CmdPosition:
+    """Where a Target sits on Gaia's colour-magnitude diagram (spec §6 step 8)."""
+
+    bp_rp: float | None
+    abs_g: float | None  # None unless the parallax is significant
+    distance_pc: float | None  # 1000 / parallax, under the same condition
+    region: Region
+
+
 @dataclass
 class Analysis:
     """One Analysis per Target per Pipeline Version (spec §4 `analyses`)."""
@@ -83,3 +131,5 @@ class Analysis:
     periods: list[PeriodogramResult] = field(default_factory=list)
     alias_tests: list[AliasTest] = field(default_factory=list)
     agreement: Agreement | None = None  # None when no two sources agree
+    blend: Blend | None = None
+    cmd: CmdPosition | None = None
