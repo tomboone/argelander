@@ -30,6 +30,15 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class TessField:
+    """The Gaia sources inside TESS's ~120″ photometric aperture around a Target, other than
+    the Target itself: the inputs to the `tess_contaminated` check (spec §5.1, §6 step 7)."""
+
+    n_sources: int
+    brightest_g: float | None  # None when n_sources is 0
+
+
+@dataclass(frozen=True)
 class TargetRef:
     """What a fetcher needs to find one Target in an archive."""
 
@@ -37,6 +46,8 @@ class TargetRef:
     ra: float  # ICRS degrees
     dec: float  # ICRS degrees
     vsx_name: str
+    # From the Target's GaiaRecord once the catalog join has run; None until then.
+    tess_field: TessField | None = None
 
 
 class Fetcher(Protocol):
