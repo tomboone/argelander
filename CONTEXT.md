@@ -41,7 +41,8 @@ _Avoid_: version, revision
 
 **Agreement**:
 The condition for accepting a period: at least two independent sources among
-ZTF g, ZTF r, ASAS-SN, TESS and Gaia's published period agree after alias tests.
+ZTF g, ZTF r, ASAS-SN, TESS and Gaia's published period agree after alias tests. A
+source from a survey the blend check finds contaminated counts as half a source.
 _Avoid_: consensus, match
 
 ### Proposals and review

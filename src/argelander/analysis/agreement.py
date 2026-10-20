@@ -13,17 +13,31 @@ settle one by agreeing with a single other source. ZTF i is not a source either.
 observed in two bands (ASAS-SN V and g) is one source, since one instrument's sampling
 puts the same aliases into both.
 
+A survey the blend checks found contaminated (spec §6 step 7) counts as half a source:
+its period may be a neighbour's, so the sources at a period must weigh as much as two clean
+ones: a contaminated source and one clean source are not enough.
+
 When two periods are found by equally many sources the sources disagree, and nothing is
-accepted. The rule of the bulk imports, taking the single highest periodogram peak, is
-how VSX came by most of the wrong periods this pipeline exists to correct.
+accepted. The rule of the bulk imports, taking the single highest periodogram peak, is how
+VSX came by most of the wrong periods this pipeline exists to correct.
 """
 
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 
 from argelander.analysis.model import Agreement, AliasTest
 
 TOLERANCE = 1e-3  # 0.1 %
 SOURCES = ("ztf_g", "ztf_r", "asassn", "tess", "gaia_published")
+# The survey each source's photometry comes from, as in `LightCurve.survey`.
+SURVEYS = {
+    "ztf_g": "ztf",
+    "ztf_r": "ztf",
+    "asassn": "asassn",
+    "tess": "tess",
+    "gaia_published": "gaia",
+}
+MIN_WEIGHT = 2.0  # two clean sources
+CONTAMINATED_WEIGHT = 0.5
 
 
 def source(survey: str, band: str) -> str | None:
@@ -35,8 +49,19 @@ def source(survey: str, band: str) -> str | None:
     return None
 
 
-def agreement(tests: Iterable[AliasTest], gaia_period: float | None = None) -> Agreement | None:
-    """The period most sources agree on, if at least two do and no other period ties it."""
+def agreement(
+    tests: Iterable[AliasTest],
+    gaia_period: float | None = None,
+    contaminated: Collection[str] = (),
+) -> Agreement | None:
+    """The period most sources agree on, if at least two do and no other period ties it.
+
+    `contaminated` names the surveys whose sources count at half weight (`Blend.surveys`).
+    """
+
+    def weight(names: set[str]) -> float:
+        return sum(CONTAMINATED_WEIGHT if SURVEYS[n] in contaminated else 1.0 for n in names)
+
     votes = [
         (name, test.best.period)
         for test in tests
@@ -59,7 +84,7 @@ def agreement(tests: Iterable[AliasTest], gaia_period: float | None = None) -> A
         elif {n for n, _ in at_short} <= {n for n, _ in at_long}:
             at_short = []
         names = {n for n, _ in at_short + at_long}
-        if len(names) < 2:
+        if weight(names) < MIN_WEIGHT:
             continue
         if at_short and at_long:
             periods = [2 * p for _, p in at_short] + [p for _, p in at_long]
@@ -74,8 +99,8 @@ def agreement(tests: Iterable[AliasTest], gaia_period: float | None = None) -> A
         )
     if not found:
         return None
-    most = max(len(a.agreed_sources) for a in found)
-    best = [a for a in found if len(a.agreed_sources) == most]
+    most = max(weight(set(a.agreed_sources)) for a in found)
+    best = [a for a in found if weight(set(a.agreed_sources)) == most]
     # The same votes are found from both of their periods; distinct periods are a conflict.
     if any(not _near(a.agreed_period, best[0].agreed_period) for a in best[1:]):
         return None
