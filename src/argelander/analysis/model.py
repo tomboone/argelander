@@ -10,6 +10,7 @@ from typing import Literal
 import numpy as np
 
 Method = Literal["lomb_scargle", "bls"]
+Relation = Literal["1:1", "2:1"]
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,40 @@ class PeriodogramResult:
         return self.peaks[0] if self.peaks else None
 
 
+@dataclass(frozen=True)
+class Hypothesis:
+    """One period a band's Light Curve was folded at: a candidate, or one of its aliases."""
+
+    period: float  # days
+    candidate: float  # the periodogram peak or Gaia period it was derived from
+    relation: str  # how `period` follows from `candidate`: "P", "2P", "P/2", "1d+", "1d-", ...
+    bins: int  # phase bins the fold was cut into
+    scatter: float  # within-bin variance as a fraction of the total variance
+    score: float  # the scatter penalised by `bins` (BIC); the ranking key, lower is better
+
+
+@dataclass(frozen=True)
+class AliasTest:
+    """Every candidate of one band and its aliases, ranked by how cleanly each folds."""
+
+    survey: str
+    band: str
+    ranking: tuple[Hypothesis, ...]  # lowest score first; empty when insufficient
+
+    @property
+    def best(self) -> Hypothesis | None:
+        return self.ranking[0] if self.ranking else None
+
+
+@dataclass(frozen=True)
+class Agreement:
+    """A period at least two independent sources found, after alias tests."""
+
+    agreed_period: float  # days
+    agreed_sources: tuple[str, ...]  # in `agreement.SOURCES` order
+    relation: Relation  # "2:1" when some sources found half `agreed_period`
+
+
 @dataclass
 class Analysis:
     """One Analysis per Target per Pipeline Version (spec §4 `analyses`)."""
@@ -46,3 +81,5 @@ class Analysis:
     target_id: int
     pipeline_version: str
     periods: list[PeriodogramResult] = field(default_factory=list)
+    alias_tests: list[AliasTest] = field(default_factory=list)
+    agreement: Agreement | None = None  # None when no two sources agree
