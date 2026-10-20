@@ -63,6 +63,9 @@ class AliasTest:
     survey: str
     band: str
     ranking: tuple[Hypothesis, ...]  # lowest score first; empty when insufficient
+    # Days from the cleaned Light Curve's first point to its last, which sets how finely it
+    # resolves a period; 0 when unknown, and then only the fixed tolerance applies.
+    baseline: float = 0.0
 
     @property
     def best(self) -> Hypothesis | None:
@@ -76,6 +79,9 @@ class Agreement:
     agreed_period: float  # days
     agreed_sources: tuple[str, ...]  # in `agreement.SOURCES` order
     relation: Relation  # "2:1" when some sources found half `agreed_period`
+    # How far apart, as a fraction, the votes at `agreed_period` were allowed to be: 0.1 %,
+    # or the period over the shortest voting baseline when that is wider.
+    tolerance: float
 
 
 @dataclass(frozen=True)

@@ -1,19 +1,27 @@
 """The Agreement rule (spec §6 step 6): which sources' alias-tested periods settle a period."""
 
-from argelander.analysis.agreement import agreement
+import pytest
+
+from argelander.analysis.agreement import GAIA_BASELINE, MAX_SCATTER, TOLERANCE, agreement
 from argelander.analysis.model import AliasTest, Hypothesis
 
+ZTF_BASELINE = 2750.0  # days, ZTF's span in the prototype fixtures
 
-def settled(survey: str, band: str, period: float) -> AliasTest:
-    """A band whose alias test settled on `period`."""
+
+def settled(
+    survey: str, band: str, period: float, *, scatter: float = 0.1, baseline: float = 0.0
+) -> AliasTest:
+    """A band whose alias test settled on `period`, folding with `scatter` over `baseline`
+    days (0: unknown, so only the fixed tolerance applies)."""
     return AliasTest(
         survey=survey,
         band=band,
         ranking=(
             Hypothesis(
-                period=period, candidate=period, relation="P", bins=20, scatter=0.1, score=0.0
+                period=period, candidate=period, relation="P", bins=20, scatter=scatter, score=0.0
             ),
         ),
+        baseline=baseline,
     )
 
 
@@ -24,6 +32,7 @@ def test_two_sources_within_a_tenth_of_a_percent_agree() -> None:
     assert found.relation == "1:1"
     assert found.agreed_sources == ("ztf_g", "asassn")
     assert abs(found.agreed_period - 0.6002) < 1e-12
+    assert found.tolerance == TOLERANCE
 
 
 def test_periods_further_apart_do_not_agree() -> None:
@@ -137,3 +146,59 @@ def test_contaminated_sources_weigh_less_against_clean_ones_at_another_period() 
     assert found is not None
     assert found.agreed_sources == ("ztf_g", "asassn", "tess")
     assert agreement(votes, gaia_period=1.7, contaminated={"tess", "asassn"}) is None
+
+
+def test_long_periods_agree_within_the_baselines_resolution() -> None:
+    """At 42 d a 2750 d baseline resolves the period to 1.5 %: ZTF g and r 0.104 % apart (the
+    SR star in the fixtures) are the same peak."""
+    votes = [
+        settled("ztf", "g", 42.2805, baseline=ZTF_BASELINE),
+        settled("ztf", "r", 42.2364, baseline=ZTF_BASELINE),
+    ]
+
+    found = agreement(votes)
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "ztf_r")
+    assert found.tolerance == pytest.approx(found.agreed_period / ZTF_BASELINE)
+    # Without a baseline the fixed 0.1 % applies and they disagree.
+    assert agreement([settled("ztf", "g", 42.2805), settled("ztf", "r", 42.2364)]) is None
+
+
+def test_short_periods_keep_the_fixed_tolerance() -> None:
+    votes = [
+        settled("ztf", "g", 0.6, baseline=ZTF_BASELINE),
+        settled("ztf", "r", 0.6012, baseline=ZTF_BASELINE),
+    ]
+
+    assert agreement(votes) is None
+
+
+def test_the_shortest_agreeing_baseline_sets_the_tolerance() -> None:
+    found = agreement([settled("ztf", "g", 40.0, baseline=ZTF_BASELINE)], gaia_period=40.3)
+
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "gaia_published")
+    assert found.tolerance == pytest.approx(found.agreed_period / GAIA_BASELINE)
+
+
+def test_a_band_whose_fold_explains_little_does_not_vote() -> None:
+    """A constant star's ZTF bands both settle on the sidereal half-day, folding badly."""
+    noise = [
+        settled("ztf", "g", 0.498637, scatter=0.91),
+        settled("ztf", "r", 0.498757, scatter=0.93),
+    ]
+
+    assert agreement(noise) is None
+    assert MAX_SCATTER < 0.91
+    folding = [settled("ztf", "g", 0.498637), settled("ztf", "r", 0.498757)]
+    assert agreement(folding) is not None
+
+
+@pytest.mark.parametrize(("gaia", "ztf"), [(40.8, 40.0), (40.0, 40.8)])
+def test_agreement_is_symmetric_in_which_vote_is_lower(gaia: float, ztf: float) -> None:
+    """2 % apart at 40 d: within Gaia's 3.9 % resolution, outside ZTF's 1.5 %. The pair is
+    judged at the coarser of the two, whichever is the lower period."""
+    found = agreement([settled("ztf", "g", ztf, baseline=ZTF_BASELINE)], gaia_period=gaia)
+
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "gaia_published")

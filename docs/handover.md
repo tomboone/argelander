@@ -202,6 +202,9 @@ At about 0.5–1.5 MB per star, even the full 166k-star backlog fits on the 2 TB
 SSD, as long as raw TESS cutouts are discarded after extraction. These are
 order-of-magnitude estimates; the prototype should measure real per-star sizes.
 
+*Measured 2026-10-20 (NEU-1711):* about 14 MB a star, almost all of it TESS, so the whole
+backlog does not fit as the table below assumes; see spec §14.
+
 | Scope | Stars | Without TESS cutouts | With cutouts kept |
 | --- | --- | --- | --- |
 | Prototype | 20 | ~20 MB | ~1 GB |
