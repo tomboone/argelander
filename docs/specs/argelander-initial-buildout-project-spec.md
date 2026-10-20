@@ -142,7 +142,7 @@ for anything queried or sorted.
 | `targets` | one Target per VSX entry | `slice_id`, `vsx_oid` (unique), `vsx_name`, `gaia_source_id` (unique), `ra`, `dec`, `vsx_type`, `vsx_period`, `vsx_mag_max`, `vsx_mag_min`, `vsx_band`, `gaia_g`, `gaia_bp_rp`, `parallax`, `parallax_error`, `gaia_vari_class`, `gaia_vari_class_score`, `gaia_vari_period`, `gaia_vari_detail` jsonb, `neighbours` jsonb (sources within 20″: id, sep, G), `status` |
 | `light_curve_files` | Cache index | `target_id`, `survey` (`ztf`/`tess`/`gaia`/`asassn`), `source_key` (survey-native id(s)), `path`, `n_points`, `t_min_bjd`, `t_max_bjd`, `bands` text[], `fetched_at`, `fetcher_version`, `status` (`ok`/`empty`/`failed`), `error` |
 | `jobs` | the queue | `kind` (`fetch`/`analyze`), `target_id`, `status` (`pending`/`claimed`/`done`/`failed`), `claimed_at`, `attempts`, `max_attempts` default 3, `last_error`, `payload` jsonb, `finished_at`; index on `(kind, status, created_at)` |
-| `analyses` | one Analysis per Target per Pipeline Version | `target_id`, `pipeline_version`, `inputs` jsonb (per survey: n points, date range, bands, light_curve_file ids), `periods` jsonb (per band: best period, power, FAP, top-5 peaks), `alias_tests` jsonb, `agreement` bool, `agreed_period`, `agreed_sources` text[], `blend` jsonb, `cmd` jsonb (abs G, BP−RP, distance), `plots` jsonb (kind → path), `started_at`, `finished_at`; unique `(target_id, pipeline_version)` |
+| `analyses` | one Analysis per Target per Pipeline Version | `target_id`, `pipeline_version`, `inputs` jsonb (per survey: n points, date range, bands, light_curve_file ids), `periods` jsonb (per band: best period, power, FAP, top-5 peaks), `alias_tests` jsonb, `agreement` bool, `agreed_period`, `agreed_sources` text[], `agreement_relation` (`1:1`/`2:1`, null without Agreement), `blend` jsonb, `cmd` jsonb (abs G, BP−RP, distance), `plots` jsonb (kind → path), `started_at`, `finished_at`; unique `(target_id, pipeline_version)` |
 | `proposals` | one Proposal per Analysis | `analysis_id`, `target_id`, `pipeline_version`, `proposed_type` (a code from the VSX dropdown vocabulary), `uncertain` bool, `period`, `epoch_bjd`, `eclipse_duration_pct` nullable, `mag_max`, `mag_min`, `min_is_amplitude` bool, `band` (VSX passband code), `confidence` numeric(4,3), `evidence` jsonb (list of rule name, verdict, weight, explanation), `status` (`queued`/`superseded`/`approved`/`rejected`), `superseded_by` nullable FK |
 | `reviews` | Tom's Review of a Proposal | `proposal_id`, `decision` (`approve`/`edit`/`reject`), `edited` jsonb (field → new value, when decision = edit), `notes` text not null, `reviewed_at` |
 | `submissions` | a Submission and its Verdict | `proposal_id`, `review_id`, `form_fields` jsonb, `reference_text`, `plot_path`, `status` (`prepared`/`submitted`/`accepted`/`rejected`), `submitted_at`, `verdict_at`, `verdict_reason` text, `verdict_tags` text[] |
@@ -312,9 +312,29 @@ Order of operations in `analysis/worker.py` for one Target:
 5. **Aliases** (`aliases.py`): for each candidate test P, 2P, P/2 and the 1 d, 0.5 d and
    sidereal-day (0.99727 d) aliases; for TESS also 13.7 d orbital systematics. Prefer the
    candidate whose phase-folded scatter is lowest and record the ranking.
+
+   *Amended 2026-10-20 (NEU-1707):* the candidates are every Lomb-Scargle and BLS peak of
+   the band plus Gaia's period, and one ranking pools all their hypotheses. An alias of P
+   for a sampling interval T is 1 / |1/P ± 1/T|, with T of 1 d, 0.5 d and the sidereal
+   day for every survey, and TESS's 13.7 d orbit for TESS as well. Aliases outside the
+   Lomb-Scargle range are not tried. Scatter is phase dispersion (Stellingwerf 1978):
+   pooled within-bin variance over total variance. P and its aliases are cut into 20
+   bins, or fewer below five points a bin; 2P takes twice that and P/2 half, so all three
+   resolve the true cycle equally. A fixed bin count would blur 2P and settle a W UMa star
+   at P/2, the `DSCTr` trap in §7. The ranking key is the binned fold's BIC,
+   N ln(RSS/N) + bins × ln N, so a longer period must earn its extra bins. Minima too
+   alike to separate stay at the shorter period.
 6. **Agreement** (`agreement.py`): accept a period when at least two of {ZTF g, ZTF r,
    ASAS-SN, TESS, Gaia published period} agree within 0.1 % (or at a 2P/P/2 relation,
    recorded as such). Gaia epoch photometry alone never settles a period.
+
+   *Amended 2026-10-20 (NEU-1707):* each band votes with its alias test's best period.
+   ASAS-SN V and g are one source, and ZTF i is none. No two agreeing votes are more than
+   0.1 % apart, so agreement cannot chain through a middle vote, and a source whose bands
+   fall at both P and 2P is no evidence of a 2:1 relation. The period most sources find wins.
+   When two periods tie, no period is agreed. A 2:1 Agreement takes the longer period, the
+   one that separates an eclipsing binary's two eclipses, and the classifier sees the
+   relation. The agreed period is the mean of the votes at that scale.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
