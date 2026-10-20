@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3" xmlns:spec="http://www.ivoa.net/xml/SpectrumModel/v1.01">
+<RESOURCE type="results" utype="spec:Spectrum">
+<TIMESYS ID="time_frame" refposition="BARYCENTER" timeorigin="2455197.5" timescale="TCB"/>
+<TABLE>
+<PARAM arraysize="49" datatype="char" name="citation" ucd="meta.bib" value="https://www.cosmos.esa.int/web/gaia-users/credits">
+<DESCRIPTION>How to cite and acknowledge Gaia:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="8" datatype="char" name="release" ucd="meta.version" value="Gaia DR3">
+<DESCRIPTION>Gaia Data Release</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="49" datatype="char" name="help" ucd="meta.ref.url" value="https://www.cosmos.esa.int/web/gaia-users/archive">
+<DESCRIPTION>Tutorials, documentation, and help:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="54" datatype="char" name="issues" ucd="meta.ref.url" value="https://www.cosmos.esa.int/web/gaia-users/known-issues">
+<DESCRIPTION>Known issues in the data:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="47" datatype="char" name="data" ucd="meta.ref.url" value="https://www.cosmos.esa.int/web/gaia/data-access">
+<DESCRIPTION>Gaia data:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="56" datatype="char" name="terms" ucd="meta.ref.url" value="https://www.cosmos.esa.int/web/esdc/terms-and-conditions">
+<DESCRIPTION>Terms and conditions for use of Gaia data:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="35" datatype="char" name="home" ucd="meta.ref.url" value="https://www.cosmos.esa.int/web/gaia">
+<DESCRIPTION>Gaia mission home:</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="13" datatype="char" name="publisher" ucd="meta.id;meta.curation" value="ESA/Gaia/DPAC">
+<DESCRIPTION>Dataset publisher</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="18" datatype="char" name="creator" ucd="meta.ref" value="Gaia Collaboration">
+<DESCRIPTION>Dataset creator</DESCRIPTION>
+</PARAM>
+<FIELD datatype="long" name="solution_id" ucd="meta.version">
+<DESCRIPTION>Solution Identifier</DESCRIPTION>
+</FIELD>
+<FIELD datatype="long" name="source_id" ucd="meta.id;meta.main">
+<DESCRIPTION>Unique source identifier (unique within a particular Data Release)</DESCRIPTION>
+</FIELD>
+<FIELD datatype="short" name="n_transits" ucd="meta.number">
+<DESCRIPTION>Number of Gaia transits</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="long" name="transit_id" ucd="meta.id">
+<DESCRIPTION>Transit unique identifier</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="g_transit_time" ucd="time.epoch" unit="d" utype="spec:Spectrum.Data.TimeAxis.Value">
+<DESCRIPTION>Transit averaged G band observing time</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="g_transit_flux" ucd="phot.flux;stat.mean" unit="'electron'.s**-1" utype="spec:Spectrum.Data.SpectralAxis.Value">
+<DESCRIPTION>Transit averaged G band flux</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="g_transit_flux_error" ucd="stat.error;phot.flux;em.opt" unit="'electron'.s**-1">
+<DESCRIPTION>Transit averaged G band flux error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="float" name="g_transit_flux_over_error" ucd="stat.snr;phot.flux;em.opt">
+<DESCRIPTION>Transit averaged G band flux divided by its error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="g_transit_mag" ucd="phot.mag;em.opt" unit="mag">
+<DESCRIPTION>Transit averaged G band Vega magnitude</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="short" name="g_transit_n_obs" ucd="meta.number">
+<DESCRIPTION>Number of CCD observations contributing to transit averaged G band flux</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="bp_obs_time" ucd="time.epoch" unit="d" utype="spec:Spectrum.Data.TimeAxis.Value">
+<DESCRIPTION>BP CCD transit observing time</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="bp_flux" ucd="phot.flux;stat.mean" unit="'electron'.s**-1" utype="spec:Spectrum.Data.SpectralAxis.Value">
+<DESCRIPTION>BP band flux</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="bp_flux_error" ucd="stat.error;phot.flux;em.opt.B" unit="'electron'.s**-1">
+<DESCRIPTION>BP band flux error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="float" name="bp_flux_over_error" ucd="stat.snr;phot.flux;em.opt.B">
+<DESCRIPTION>BP band flux divided by its error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="bp_mag" ucd="phot.mag;em.opt.B" unit="mag">
+<DESCRIPTION>BP band Vega magnitude</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="rp_obs_time" ucd="time.epoch" unit="d" utype="spec:Spectrum.Data.TimeAxis.Value">
+<DESCRIPTION>RP CCD transit observing time</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="rp_flux" ucd="phot.flux;stat.mean" unit="'electron'.s**-1" utype="spec:Spectrum.Data.SpectralAxis.Value">
+<DESCRIPTION>RP band flux</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="rp_flux_error" ucd="stat.error;phot.flux;em.opt.R" unit="'electron'.s**-1">
+<DESCRIPTION>RP band flux error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="float" name="rp_flux_over_error" ucd="stat.snr;phot.flux;em.opt.R">
+<DESCRIPTION>RP band flux divided by its error</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="double" name="rp_mag" ucd="phot.mag;em.opt.R" unit="mag">
+<DESCRIPTION>RP band Vega magnitude</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_noisy_data" ucd="meta.code.status">
+<DESCRIPTION>G band flux scatter larger than expected by photometry processing (all CCDs considered)</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_sm_unavailable" ucd="meta.code.status">
+<DESCRIPTION>SM transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af1_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF1 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af2_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF2 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af3_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF3 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af4_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF4 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af5_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF5 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af6_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF6 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af7_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF7 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af8_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF8 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af9_unavailable" ucd="meta.code.status">
+<DESCRIPTION>AF9 transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_bp_unavailable" ucd="meta.code.status">
+<DESCRIPTION>BP transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_rp_unavailable" ucd="meta.code.status">
+<DESCRIPTION>RP transit unavailable by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_sm_reject" ucd="meta.code.status">
+<DESCRIPTION>SM transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af1_reject" ucd="meta.code.status">
+<DESCRIPTION>AF1 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af2_reject" ucd="meta.code.status">
+<DESCRIPTION>AF2 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af3_reject" ucd="meta.code.status">
+<DESCRIPTION>AF3 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af4_reject" ucd="meta.code.status">
+<DESCRIPTION>AF4 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af5_reject" ucd="meta.code.status">
+<DESCRIPTION>AF5 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af6_reject" ucd="meta.code.status">
+<DESCRIPTION>AF6 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af7_reject" ucd="meta.code.status">
+<DESCRIPTION>AF7 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af8_reject" ucd="meta.code.status">
+<DESCRIPTION>AF8 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_af9_reject" ucd="meta.code.status">
+<DESCRIPTION>AF9 transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_bp_reject" ucd="meta.code.status">
+<DESCRIPTION>BP transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="photometry_flag_rp_reject" ucd="meta.code.status">
+<DESCRIPTION>RP transit rejected by photometry processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="variability_flag_g_reject" ucd="meta.code.status">
+<DESCRIPTION>Average G transit photometry rejected by variability processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="variability_flag_bp_reject" ucd="meta.code.status">
+<DESCRIPTION>BP transit photometry rejected by variability processing</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="boolean" name="variability_flag_rp_reject" ucd="meta.code.status">
+<DESCRIPTION>RP transit photometry rejected by variability processing</DESCRIPTION>
+</FIELD>
+<DATA>
+<BINARY2>
+<STREAM encoding='base64'>
+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
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgAAAC1GRkZGVEZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAtRkZURkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAALUZGRkZGRkZGRkZGRkZU
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRlRGRgAAAC1GRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGRkYAAAAtRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAALUZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgAAAC1GRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAtRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRlRGRkZGRkZURkZGRkZGRkZGRkZGRkZGAAAALUZGVEZGRkZG
+RkZGRkZGRlRGVEZURkZGRkZGRkZGRlRGRkZGRkZGRkZURkZGRgAAAC1GRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAtRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAALVRUVFRU
+VFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVAAAAC1GRkZG
+VEZGRkZGRkZURkZGRkZGRkZGRkZGRkZGRkZGVEZGRkZGRkZGRkZGRkYAAAAtRkZU
+RkZGRkZGRkZGVEZGRkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGAAAALUZG
+RkZGRkZGRkZGRlRURkZGRkZGRkZGRkZGRkZGRkZURkZGRkZGRkZGRlRGRgAAAC1G
+RkZGRkZGRkZGRkZURkZGRkZGRkZGRkZGRkZGRlRGVEZGRkZGRkZGRkZGRkYAAAAt
+RkZGRkZGRkZGRkZGVEZGRkZGVEZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGAAAA
+LUZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGRkZGRkZURkZGRkZGRkZGRkZGRgAA
+AC1GRkZGRkZGRkZGRkZURkZGRkZGRkZGRkZGRkZGRkZGVEZGRkZGRkZGRkZGRkYA
+AAAtRkZGRkZGRkZGRkZGVEZGRkZGRkZGRlRGRkZGRkZURlRGRkZGRkZGRkZGRkZG
+AAAALUZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGRkZGRkZURkZGRkZGRkZGRkZG
+RgAAAC1GRkZGRkZGRkZGRkZGRkZURkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkYAAAAtRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGAAAALUZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZURkZGRkZURkZGRkZGRkZG
+RkZGRgAAAC1GRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkYAAAAtRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZG
+RkZGRkZGAAAAAAAABTVkghgADww5ECvBA6wgAAAzAAAAMwA9+GGYeuNfAESQHU+2
+EpUAXvG8pWQycwBlB/AbAhD7AGjQLNieNhUAaNPlqNDjQgCK3aU+QpIBAIrmgTVM
+ZyUAjf7Ns+p3OwCOAoaBHOPeAK/zVa7M1UsAsgOoVJyimwCyDIRHykZ0ALIQPRhA
+4nQAxKAI3nJVDADEo8GvGNJpAMSsnaNwJwAAxLBWcGikBQDGWFRtRBOTAMZcDTrW
+sEEAxmTpMTRU4QDGaKIDIPEJAM4NFQ5eV6AAzhDN3dC1wgDWEND5LperANYZrPkA
+Fx4A1h1ly3qgcADWJkHGFiFbANYp+paCwygA1jLWjJxFgADWP2tNjlPPANZDJBqu
+9tsA1kwACeJkJADWWJTC4HZ9ANZlKXl4cu4A1nG+LrZxUwDWflLjXHGjANaK55je
+c9oA1qQRCcRl+ADWp8nWlvW3ANawpcccVdIA1rRelT7mEADWvTqJEEdzANbA81io
+wFMA1snPUIYi7gDWzYghxrQ4ANbaHPGYkecA6QXO5zJFwwDpCYe1CPTHAOviJL0Y
+FaoA8oJaenpkJgAAADNAmsEsHD02U0CbR2VT+od7QJ1gj8qGh4NAndyB/2fQAECe
+KYZbRyyJQJ4p0iVkeMxAoG9tyzoUbECgb8f6gmzmQKCPSW0gM/xAoI9vUInxG0Ch
+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
+vQzWfEAahb7XjGd8QBnhrBEbD9BAGb2OxqtLAEAZM115nbEgQBkMBaK9SOhAGRd+
+sTMcWEAY1wT8a094QBjwFjOo2ehAGPh/AlSBAEAZKKqbHtsYQBnadUbVT3BAGaun
+lQIj3EAaAXECZ6dIQBpZrevgIhQAAAAzRkZGRkZURlRUVFRGRkZGVEZGVEZGVEZG
+VEZGRkZGRkZGVEZURkZGRkZUVFRGVEZURkZGAAAAM0ZUVFRUVFRUVFRUVFRUVFRG
+VFRUVFRUVFRGVFRUVEZUVFRUVFRUVFRGVFRUVFRUVFRUVAAAADNGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAzRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+AAAAM0ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRgAAADNGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkYAAAAzRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAAM0ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgAAADNGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGVEZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAzRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAAM0ZG
+RkZGRkZGRkZGRlRGRkZGRkZGRkZURkZGRkZUVEZGRkZGRkZGRkZGRlRURkZGVEZG
+RgAAADNGRkZGRkZGRkZGRkZGRkZGRkZGRkZGVEZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkYAAAAzRkZGRkZGRkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGAAAAM1RUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRU
+VFRUVFRUVFRUVFRUVFRUVFRUVFRUVAAAADNGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAzRkZGRkZGRkZGRlRGRkZU
+RkZGRkZURlRGRkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGAAAAM0ZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgAAADNG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkYAAAAzRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGAAAAM0ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZURkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRgAAADNGRkZGRkZGRkZGRkZGRkZGRkZGRkZGVEZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAzRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RlRGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGAAAAM0ZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZURkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgAAADNGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGVEZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkYAAAAz
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRlRGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGAAAAM0ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+RkZGRkZGRkZGRgAAADNGRkZGRkZGRkZGRkZGRkZGRkZGRkZGVEZGRkZGRkZGRkZG
+RkZGRkZGRkZGRkZGRkZGRkYAAAAzRkZGRkZGRkZGRkZGRkZGRkZGRkZGRlRGRkZG
+RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG
+</STREAM>
+</BINARY2>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

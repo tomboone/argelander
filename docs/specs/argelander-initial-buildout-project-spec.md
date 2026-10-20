@@ -213,6 +213,16 @@ deleted in the same job that extracted the light curve.
 - **Gaia DR3 epoch photometry** (DataLink, `Gaia.load_data(..., retrieval_type=
   "EPOCH_PHOTOMETRY")`): G, BP, RP per transit; drop `rejected_by_photometry` and
   `rejected_by_variability`. Fetched per Slice in batches of IDs, not per star.
+
+  *Amended 2026-10-19 (NEU-1703):* the archive now refuses astroquery's default
+  `data_structure` (`INDIVIDUAL`), and its per-transit replacement, `DATAMODEL_STANDARD`,
+  has a `rejected_by_photometry` column that covers G only; BP and RP rejections sit in
+  opaque `*_other_flags`, and some still carry a magnitude. The fetcher requests
+  `DATAMODEL_GAIA` (one row per source, transits in arrays) in batches of 100 and drops,
+  per band: G transits with a null flux (exactly the archive's `rejected_by_photometry`),
+  `photometry_flag_{bp,rp}_reject`, `variability_flag_{g,bp,rp}_reject`, and any transit
+  without a time, magnitude or positive flux signal-to-noise. Magnitude errors are
+  2.5 / ln 10 over the published flux signal-to-noise.
 - **ASAS-SN** (Sky Patrol v2 client): V and g; keep the quality flag the client marks good.
   Long baseline is its value; its cadence rarely settles short periods alone.
 
