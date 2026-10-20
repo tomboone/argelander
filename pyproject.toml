@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=2.5.4",
     "pyarrow>=26.0.0",
     "pydantic-settings>=2.6",
+    "requests>=2.32",
     "typer>=0.15",
 ]
 
