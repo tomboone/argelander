@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     gaia_concurrency: int = Field(default=1, ge=1)
     asassn_concurrency: int = Field(default=2, ge=1)
 
+    # Attempts per archive call within one fetch Job, retrying HTTP 429/5xx and connection
+    # errors with exponential backoff (spec §5.1). Re-claiming a failed Job is the `jobs`
+    # table's own max_attempts, not this.
+    fetch_max_attempts: int = Field(default=3, ge=1)
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
