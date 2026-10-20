@@ -19,7 +19,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # astropy, astroquery and lightkurve all derive their download caches from XDG_CACHE_HOME
 # (verified 2026-10-19 against astropy 8.0, astroquery 0.4.11, lightkurve 2.6);
-# ASTROPY_CACHE_DIR would miss lightkurve. Matplotlib's font cache lands there too. A
+# ASTROPY_CACHE_DIR would miss lightkurve. This needs astropy>=8.0: earlier versions used
+# XDG_CACHE_HOME only when the subdirectory already existed. Matplotlib's font cache lands
+# there too. A
 # Compose file that moves ASTRO_CACHE_DIR must set XDG_CACHE_HOME to the same path.
 ENV ASTRO_CACHE_DIR=/app/data/astropy
 ENV XDG_CACHE_HOME=$ASTRO_CACHE_DIR
