@@ -23,6 +23,7 @@ Parquet Cache is the only copy kept (handover: Storage budget).
 """
 
 import tempfile
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -38,6 +39,13 @@ from astropy.table import Table
 from argelander.analysis.time import TESS_BTJD_ZERO, tess_btjd_to_bjd_tdb
 from argelander.fetch.base import ArchiveLimits, TargetRef, TessField, is_transient, with_retries
 from argelander.lightcurve import LightCurve
+
+# lightkurve's `download_all` silences itself by swapping `sys.stdout` for a devnull file,
+# closing it, and putting back what it found. Two calls overlapping in `ArchiveLimits.run`'s
+# threads can each find the other's devnull and put back a closed file, which leaves the
+# whole process's stdout closed and fails every later print, lightkurve's own included. The
+# searches stay concurrent; only the downloads take turns.
+_DOWNLOAD_LOCK = threading.Lock()
 
 # Most preferred first. SPOC is the 2-minute target-pixel pipeline; TESS-SPOC is the same
 # pipeline run on full-frame images.
@@ -130,7 +138,9 @@ def download_prebuilt(ra: float, dec: float, directory: Path) -> list[Any]:
     rows = choose_products(result.table)
     if not rows:
         return []
-    return list(result[rows].download_all(quality_bitmask="none", download_dir=str(directory)))
+    with _DOWNLOAD_LOCK:
+        products = result[rows].download_all(quality_bitmask="none", download_dir=str(directory))
+    return list(products)
 
 
 def download_cutouts(ra: float, dec: float, directory: Path) -> list[Any]:
@@ -140,9 +150,10 @@ def download_cutouts(ra: float, dec: float, directory: Path) -> list[Any]:
     if len(result) == 0:
         return []
     try:
-        cutouts = result.download_all(
-            cutout_size=CUTOUT_SIZE, quality_bitmask="none", download_dir=str(directory)
-        )
+        with _DOWNLOAD_LOCK:
+            cutouts = result.download_all(
+                cutout_size=CUTOUT_SIZE, quality_bitmask="none", download_dir=str(directory)
+            )
     except Exception as error:
         # lightkurve re-raises any cutout failure as its own error without the HTTP status.
         # Surface a transient original so `with_retries` retries it instead of giving up.

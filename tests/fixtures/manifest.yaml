@@ -1,0 +1,617 @@
+# The prototype star set (spec §11; NEU-1710): the stars whose Light Curves live in
+# `lightcurves/` and whose published values the prototype gate (NEU-1711) checks.
+#
+# `scripts/build_fixtures.py` reads this file and rewrites it to fill in `coverage`, so
+# explanations go in this header, which it keeps; other comments would be dropped.
+#
+# Fields (the M2 contract first):
+#   star              VSX name; for a star not in VSX, "Gaia DR3 <source_id>"
+#   gaia_source_id    Gaia DR3 source ID, the key of the fixture paths
+#   published_period  days, as VSX publishes it; null when nothing is published
+#   published_type    VSX type code; null when the star is not in VSX
+#   source            where the period and type come from, and what confirms them
+#   role              positive | negative
+#   negative_kind     negatives only: blend | alias_trap | constant
+#   vsx_oid           VSX OID, or null
+#   ra, dec           Gaia DR3 position (ICRS, epoch J2016.0), degrees; what the fetchers query
+#   gaia_g            Gaia DR3 phot_g_mean_mag
+#   true_period       alias traps only: the period the published one is an alias of
+#   blend_host        blends only: the variable whose light falls in the star's aperture
+#   coverage          per survey, the bands written to lightcurves/: a list of bands; [] when
+#                     the survey has no data for the star (a coverage gap); "pending" when
+#                     the survey has not been fetched yet (ASAS-SN until NEU-1796)
+#
+# How the set was chosen, on 2026-10-20:
+#   Positives are VSX entries in Draco (or, for the Cepheid, neighbouring Cepheus) with
+#   maximum 13-16 mag and one Gaia DR3 source within 3", whose VSX period matches the
+#   independent ZTF period of Chen et al. 2020 (2020ApJS..249...18C) within 0.1 %. Entries
+#   whose VSX period is identical to the ZTF one were skipped: VSX imported those from the
+#   same catalog, so the two do not confirm each other.
+#   Alias traps are VSX entries whose period differs from both the ZTF and the Gaia DR3
+#   period by 1 cycle per day (solar or sidereal), while those two agree. The VSX value is
+#   the trap: the gate expects no Agreement at `published_period`, and the period the
+#   pipeline should find is `true_period`.
+#   Blends are VSX entries whose position falls on a Gaia DR3 source not flagged variable,
+#   with a Gaia DR3 eclipsing binary under 1.5" away whose Gaia period matches the VSX one.
+#   Ground surveys do not separate the two, so the variability VSX credits to the star is
+#   the neighbour's; within 3" and brighter than G + 2, the neighbour makes the blend check
+#   flag `blend_suspect`. `gaia_source_id` is the non-variable source; `blend_host` the
+#   eclipsing binary.
+#   Constants are Gaia DR3 sources near (262, +60) with no VSX entry within 30", not
+#   flagged variable, RUWE < 1.2, and among the lowest G-band flux scatter
+#   (phot_g_mean_flux_error * sqrt(phot_g_n_obs) / phot_g_mean_flux) at their magnitude.
+
+- star: NSVS 2887379
+  gaia_source_id: 1632557411838572544
+  published_period: 0.2792995
+  published_type: EW
+  source: VSX OID 278353; ZTF period 0.2792952 d (EW) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 278353
+  ra: 260.272746
+  dec: 63.588545
+  gaia_g: 13.91
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J164726.16+724659.3
+  gaia_source_id: 1653832652598729856
+  published_period: 0.300852
+  published_type: EW
+  source: VSX OID 1514405; ZTF period 0.3008542 d (EW) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 1514405
+  ra: 251.85882
+  dec: 72.783137
+  gaia_g: 14.84
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: LINEAR 20427289
+  gaia_source_id: 1419291291792064896
+  published_period: 0.31915
+  published_type: EW
+  source: VSX OID 322075; ZTF period 0.3191508 d (EW) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 322075
+  ra: 259.165356
+  dec: 53.639598
+  gaia_g: 15.34
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J163706.32+633921.6
+  gaia_source_id: 1628869340601939968
+  published_period: 1.303237
+  published_type: EA
+  source: VSX OID 557090; ZTF period 1.3032469 d (EA) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 557090
+  ra: 249.276423
+  dec: 63.656021
+  gaia_g: 14.73
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: DW Dra
+  gaia_source_id: 2261785926184018944
+  published_period: 1.22625
+  published_type: EA
+  source: VSX OID 13817; ZTF period 1.2263473 d (EA) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 13817
+  ra: 290.411829
+  dec: 69.934174
+  gaia_g: 13.04
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: T-Dra0-09947
+  gaia_source_id: 1432149186925958272
+  published_period: 0.4098204
+  published_type: EA
+  source: VSX OID 162685; ZTF period 0.4098172 d (EA) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 162685
+  ra: 254.978599
+  dec: 54.467443
+  gaia_g: 15.08
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: 1SWASP J191601.56+560055.3
+  gaia_source_id: 2141102808365310080
+  published_period: 0.3220202
+  published_type: EB
+  source: VSX OID 410263; ZTF period 0.3220182 d (EW) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 410263
+  ra: 289.012128
+  dec: 56.014882
+  gaia_g: 13.6
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: CSS_J173907.6+550053
+  gaia_source_id: 1418010841782026880
+  published_period: 0.4858496
+  published_type: RRAB
+  source: VSX OID 295158; ZTF period 0.4858635 d (RR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 295158
+  ra: 264.78197
+  dec: 55.014594
+  gaia_g: 14.69
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: V0364 Dra
+  gaia_source_id: 1418837846324865664
+  published_period: 0.477038
+  published_type: RRAB
+  source: VSX OID 137713; ZTF period 0.4770257 d (RR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 137713
+  ra: 258.834161
+  dec: 52.910851
+  gaia_g: 14.85
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: V0502 Dra
+  gaia_source_id: 1652015984511510656
+  published_period: 0.480127
+  published_type: RRAB
+  source: VSX OID 298017; ZTF period 0.4801236 d (RR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 298017
+  ra: 257.774861
+  dec: 72.253557
+  gaia_g: 14.92
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J163919.05+740125.0
+  gaia_source_id: 1654934225810791936
+  published_period: 0.488969
+  published_type: RRAB
+  source: VSX OID 551317; ZTF period 0.4889666 d (RR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 551317
+  ra: 249.829574
+  dec: 74.023609
+  gaia_g: 15.08
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: V0379 Dra
+  gaia_source_id: 1439840098963073152
+  published_period: 0.35762
+  published_type: RRC
+  source: VSX OID 146774; ZTF period 0.357553 d (RRc) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 146774
+  ra: 265.551535
+  dec: 63.567269
+  gaia_g: 13.33
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J164540.98+652508.2
+  gaia_source_id: 1635300040515480448
+  published_period: 0.424478
+  published_type: RRC
+  source: VSX OID 551372; ZTF period 0.4244849 d (RRc) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 551372
+  ra: 251.420668
+  dec: 65.41897
+  gaia_g: 15.07
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J170333.89+604850.1
+  gaia_source_id: 1438034941388614528
+  published_period: 0.0503201
+  published_type: DSCT
+  source: VSX OID 1515502; ZTF period 0.05032 d (DSCT) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 1515502
+  ra: 255.891147
+  dec: 60.81389
+  gaia_g: 13.38
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: V0553 Dra
+  gaia_source_id: 1636244761522048128
+  published_period: 0.1719812
+  published_type: HADS
+  source: VSX OID 278891; ZTF period 0.1719818 d (DSCT) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 278891
+  ra: 248.960425
+  dec: 66.325802
+  gaia_g: 13.78
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: KO Cep
+  gaia_source_id: 2198341184695523712
+  published_period: 4.55809
+  published_type: DCEP
+  source: VSX OID 8600; ZTF period 4.5583698 d (CEP) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 8600
+  ra: 332.74301
+  dec: 56.291573
+  gaia_g: 13.06
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J194707.50+750321.7
+  gaia_source_id: 2288381085234276352
+  published_period: 55.5
+  published_type: SR
+  source: VSX OID 559981; ZTF period 55.4970596 d (SR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 559981
+  ra: 296.781201
+  dec: 75.055987
+  gaia_g: 13.93
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: ASASSN-V J192915.72+664402.8
+  gaia_source_id: 2260814576379793536
+  published_period: 42.25
+  published_type: SR
+  source: VSX OID 558809; ZTF period 42.2755727 d (SR) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 558809
+  ra: 292.315511
+  dec: 66.734097
+  gaia_g: 13.1
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: ASASSN-V J164537.58+592828.7
+  gaia_source_id: 1432033222808979712
+  published_period: 12.088
+  published_type: ROT
+  source: VSX OID 607387; ZTF period 12.0820327 d (RSCVN) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 607387
+  ra: 251.406487
+  dec: 59.474685
+  gaia_g: 14.34
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: ASASSN-V J183551.48+614330.1
+  gaia_source_id: 2159656723485147008
+  published_period: 2.53156
+  published_type: ROT
+  source: VSX OID 1524646; ZTF period 2.5316432 d (RSCVN) in Chen et al. 2020 (2020ApJS..249...18C)
+  role: positive
+  vsx_oid: 1524646
+  ra: 278.964455
+  dec: 61.725049
+  gaia_g: 15.19
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: PS1-3PI J190107.42+492456.3
+  gaia_source_id: 2132024209574880896
+  published_period: 0.462874
+  published_type: RRC
+  source: VSX OID 674716 publishes 0.462874 d, a sidereal-day alias (1/P differs by 1.003 c/d) of 0.3161525
+    d in Chen et al. 2020 (2020ApJS..249...18C) and 0.3161476 d in Gaia DR3 vari_rrlyrae (Clementini et
+    al. 2023, 2023A&A...674A..18C)
+  role: negative
+  negative_kind: alias_trap
+  vsx_oid: 674716
+  ra: 285.280925
+  dec: 49.41563
+  gaia_g: 15.17
+  true_period: 0.3161525
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: CSS_J181701.4+514940
+  gaia_source_id: 2124506195738792448
+  published_period: 0.446574
+  published_type: EW
+  source: VSX OID 391323 publishes 0.446574 d, a 1-day alias (1/P differs by 1.001 c/d) of 0.308586 d
+    in Chen et al. 2020 (2020ApJS..249...18C) and 0.3085825 d in Gaia DR3 vari_eclipsing_binary (Mowlavi
+    et al. 2023, 2023A&A...674A..16M)
+  role: negative
+  negative_kind: alias_trap
+  vsx_oid: 391323
+  ra: 274.255949
+  dec: 51.82782
+  gaia_g: 14.41
+  true_period: 0.308586
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia:
+    - BP
+    - G
+    - RP
+    asassn: pending
+- star: CSS_J160212.7+530724
+  gaia_source_id: 1404819657186292352
+  published_period: 0.318016
+  published_type: EW
+  source: VSX OID 385925, whose position lies 0.6" from this source (not flagged variable in Gaia DR3)
+    and 1.5" from Gaia DR3 1404819652890360064, 1.9 mag brighter, an eclipsing binary with P = 0.3180042
+    d in Gaia DR3 vari_eclipsing_binary (Mowlavi et al. 2023, 2023A&A...674A..16M)
+  role: negative
+  negative_kind: blend
+  vsx_oid: 385925
+  ra: 240.553215
+  dec: 53.123727
+  gaia_g: 15.7
+  blend_host:
+    star: Gaia DR3 1404819652890360064
+    gaia_source_id: 1404819652890360064
+    separation_arcsec: 1.19
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: CSS_J172350.6+504650
+  gaia_source_id: 1414806246422607104
+  published_period: 0.270084
+  published_type: EW
+  source: VSX OID 389769, whose position lies 1.1" from this source (not flagged variable in Gaia DR3)
+    and 1.2" from Gaia DR3 1414806246423706368, 0.4 mag brighter, an eclipsing binary with P = 0.2700841
+    d in Gaia DR3 vari_eclipsing_binary (Mowlavi et al. 2023, 2023A&A...674A..16M)
+  role: negative
+  negative_kind: blend
+  vsx_oid: 389769
+  ra: 260.960502
+  dec: 50.780624
+  gaia_g: 14.48
+  blend_host:
+    star: Gaia DR3 1414806246423706368
+    gaia_source_id: 1414806246423706368
+    separation_arcsec: 1.48
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: Gaia DR3 1435854639894380800
+  gaia_source_id: 1435854639894380800
+  published_period: null
+  published_type: null
+  source: Not in VSX within 30"; not flagged variable in Gaia DR3; RUWE < 1.2; among the lowest G-band
+    flux scatter at its magnitude within 1 deg of (262, +60)
+  role: negative
+  negative_kind: constant
+  vsx_oid: null
+  ra: 263.051958
+  dec: 60.480356
+  gaia_g: 13.66
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: Gaia DR3 1434111643382583936
+  gaia_source_id: 1434111643382583936
+  published_period: null
+  published_type: null
+  source: Not in VSX within 30"; not flagged variable in Gaia DR3; RUWE < 1.2; among the lowest G-band
+    flux scatter at its magnitude within 1 deg of (262, +60)
+  role: negative
+  negative_kind: constant
+  vsx_oid: null
+  ra: 260.950673
+  dec: 59.517247
+  gaia_g: 13.96
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
+- star: Gaia DR3 1435683567052954368
+  gaia_source_id: 1435683567052954368
+  published_period: null
+  published_type: null
+  source: Not in VSX within 30"; not flagged variable in Gaia DR3; RUWE < 1.2; among the lowest G-band
+    flux scatter at its magnitude within 1 deg of (262, +60)
+  role: negative
+  negative_kind: constant
+  vsx_oid: null
+  ra: 263.799669
+  dec: 60.04058
+  gaia_g: 15.01
+  coverage:
+    ztf:
+    - g
+    - r
+    tess:
+    - T
+    gaia: []
+    asassn: pending
