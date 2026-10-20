@@ -226,6 +226,17 @@ deleted in the same job that extracted the light curve.
 - **ASAS-SN** (Sky Patrol v2 client): V and g; keep the quality flag the client marks good.
   Long baseline is its value; its cadence rarely settles short periods alone.
 
+  *Amended 2026-10-19 (NEU-1704):* the fetcher calls Sky Patrol's HTTP API with `requests`
+  instead of the `pyasassn` client, whose untimed requests, `multiprocessing` downloads and
+  catch-all retry loop do not fit the fetch worker; the client stays the reference for the
+  calls. A 3″ cone search of `master_list`, then the light-curve block from a server that
+  `get_block_servers` names. The target nearest the position wins. Kept points have
+  `quality == "G"` and `mag_err` below 99 (non-detections are upper limits with
+  `mag_err` 99.99); the band comes from the camera by the client's camera lists. An empty
+  server list (maintenance) is a transient failure. The service was down while this was
+  built, so the offline test replays a constructed response in the documented schema;
+  recording a real one, the first live fetch and the §14 V-or-g note follow in NEU-1764.
+
 Per-archive concurrency is a local semaphore in `fetch/base.py` (defaults: IRSA 2, MAST 2,
 Gaia 1, ASAS-SN 2) with exponential backoff on HTTP 429/5xx and a per-Target
 `max_attempts` of 3. Gaia catalog data (colour, parallax, vari_*, neighbours) is **not** a
