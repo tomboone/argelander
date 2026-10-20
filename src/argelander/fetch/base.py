@@ -36,6 +36,9 @@ class TessField:
 
     n_sources: int
     brightest_g: float | None  # None when n_sources is 0
+    # The magnitude of all their G flux together, for the summed-flux test; None when
+    # n_sources is 0.
+    combined_g: float | None
 
 
 @dataclass(frozen=True)

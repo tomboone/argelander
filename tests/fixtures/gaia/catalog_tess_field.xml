@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with astropy.io.votable version 8.0.2
+     http://www.astropy.org/ -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/VOTable-1.4.xsd">
+ <RESOURCE type="results">
+  <TABLE>
+   <FIELD ID="source_id" datatype="long" name="source_id" ucd="meta.id">
+    <DESCRIPTION>
+     Unique source identifier (unique within a particular Data
+     Release)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="n_sources" datatype="long" name="n_sources"/>
+   <FIELD ID="brightest_g" datatype="float" name="brightest_g"/>
+   <FIELD ID="combined_g" datatype="double" name="combined_g"/>
+   <DATA>
+    <TABLEDATA>
+     <TR>
+      <TD>1418010841782026880</TD>
+      <TD>25</TD>
+      <TD>14.194247</TD>
+      <TD>13.283805734875795</TD>
+     </TR>
+     <TR>
+      <TD>1422733312942999424</TD>
+      <TD>24</TD>
+      <TD>10.682863</TD>
+      <TD>10.663976571656972</TD>
+     </TR>
+     <TR>
+      <TD>1435149135683337216</TD>
+      <TD>34</TD>
+      <TD>12.103959</TD>
+      <TD>11.866369367988483</TD>
+     </TR>
+     <TR>
+      <TD>1438034941388614528</TD>
+      <TD>22</TD>
+      <TD>12.998359</TD>
+      <TD>12.109364489453798</TD>
+     </TR>
+     <TR>
+      <TD>1440250422959420800</TD>
+      <TD>21</TD>
+      <TD>15.562562</TD>
+      <TD>14.779427454847706</TD>
+     </TR>
+     <TR>
+      <TD>1440307936865442176</TD>
+      <TD>24</TD>
+      <TD>14.371153</TD>
+      <TD>13.470888132600825</TD>
+     </TR>
+    </TABLEDATA>
+   </DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

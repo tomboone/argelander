@@ -206,7 +206,7 @@ def test_tglc_publishes_no_errors_so_they_are_nan() -> None:
 def test_both_flux_columns_survive_the_parquet_round_trip(tmp_path: Path) -> None:
     lc = light_curve_from_products(
         [synthetic_product("SPOC", 20), synthetic_product("SPOC", 21)],
-        tess_field=TessField(n_sources=2, brightest_g=13.9),
+        tess_field=TessField(n_sources=2, brightest_g=13.9, combined_g=13.4),
         fetched_at="2026-10-19",
     )
     assert lc is not None
@@ -244,12 +244,16 @@ def test_a_sector_with_no_good_cadence_is_dropped_and_recorded() -> None:
 
 
 def test_the_tess_field_is_recorded_when_the_gaia_record_has_one() -> None:
-    target = dataclasses.replace(QLP_TARGET, tess_field=TessField(3, 12.4))
+    target = dataclasses.replace(QLP_TARGET, tess_field=TessField(3, 12.4, 12.1))
 
     (with_field,) = fetch(qlp_fetcher(), target)
     (without,) = fetch(qlp_fetcher())
 
-    assert with_field.meta["tess_field"] == {"n_sources": 3, "brightest_g": 12.4}
+    assert with_field.meta["tess_field"] == {
+        "n_sources": 3,
+        "brightest_g": 12.4,
+        "combined_g": 12.1,
+    }
     assert without.meta["tess_field"] is None
 
 

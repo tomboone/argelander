@@ -71,7 +71,7 @@ src/argelander/
   alembic/             migrations (env.py reads DATABASE_URL from config)
   catalog/
     vsx.py             VizieR B/vsx slice query via astroquery
-    gaia.py            one ADQL table-upload join per Slice (gaia_source + vari_* + neighbours)
+    gaia.py            table-upload joins per Slice chunk (gaia_source + vari_*, 2MASS, neighbours, TESS field)
     constellation.py   astropy get_constellation + Slice bounds
   lightcurve.py        LightCurve dataclass + Parquet read/write (section 5)
   fetch/
@@ -138,7 +138,7 @@ for anything queried or sorted.
 | Table | Purpose | Key columns |
 | --- | --- | --- |
 | `slices` | one Slice per selection run | `name` (e.g. `Dra-13-16`), `constellation`, `mag_min`, `mag_max`, `pipeline_version`, `n_targets` |
-| `targets` | one Target per VSX entry | `slice_id`, `vsx_oid` (unique), `vsx_name`, `gaia_source_id` (unique), `ra`, `dec`, `vsx_type`, `vsx_period`, `vsx_mag_max`, `vsx_mag_min`, `vsx_band`, `gaia_g`, `gaia_bp_rp`, `parallax`, `parallax_error`, `gaia_vari_class`, `gaia_vari_class_score`, `gaia_vari_period`, `gaia_vari_detail` jsonb, `neighbours` jsonb (sources within 5″: id, sep, G), `status` |
+| `targets` | one Target per VSX entry | `slice_id`, `vsx_oid` (unique), `vsx_name`, `gaia_source_id` (unique), `ra`, `dec`, `vsx_type`, `vsx_period`, `vsx_mag_max`, `vsx_mag_min`, `vsx_band`, `gaia_g`, `gaia_bp_rp`, `parallax`, `parallax_error`, `gaia_vari_class`, `gaia_vari_class_score`, `gaia_vari_period`, `gaia_vari_detail` jsonb, `neighbours` jsonb (sources within 20″: id, sep, G), `status` |
 | `light_curve_files` | Cache index | `target_id`, `survey` (`ztf`/`tess`/`gaia`/`asassn`), `source_key` (survey-native id(s)), `path`, `n_points`, `t_min_bjd`, `t_max_bjd`, `bands` text[], `fetched_at`, `fetcher_version`, `status` (`ok`/`empty`/`failed`), `error` |
 | `jobs` | the queue | `kind` (`fetch`/`analyze`), `target_id`, `status` (`pending`/`claimed`/`done`/`failed`), `claimed_at`, `attempts`, `max_attempts` default 3, `last_error`, `payload` jsonb, `finished_at`; index on `(kind, status, created_at)` |
 | `analyses` | one Analysis per Target per Pipeline Version | `target_id`, `pipeline_version`, `inputs` jsonb (per survey: n points, date range, bands, light_curve_file ids), `periods` jsonb (per band: best period, power, FAP, top-5 peaks), `alias_tests` jsonb, `agreement` bool, `agreed_period`, `agreed_sources` text[], `blend` jsonb, `cmd` jsonb (abs G, BP−RP, distance), `plots` jsonb (kind → path), `started_at`, `finished_at`; unique `(target_id, pipeline_version)` |
@@ -240,7 +240,7 @@ deleted in the same job that extracted the light curve.
 Per-archive concurrency is a local semaphore in `fetch/base.py` (defaults: IRSA 2, MAST 2,
 Gaia 1, ASAS-SN 2) with exponential backoff on HTTP 429/5xx and a per-Target
 `max_attempts` of 3. Gaia catalog data (colour, parallax, vari_*, neighbours) is **not** a
-fetch Job: `select-slice` fetches it for the whole Slice in one ADQL upload join.
+fetch Job: `select-slice` fetches it for the whole Slice through ADQL upload joins.
 
 **Per-survey contamination radii** (from VSX's submission notice): Gaia ~0.7″, ZTF ~2″,
 ASAS-SN ~17″, TESS ~120″ and larger for bright stars. The Gaia neighbour query therefore
@@ -253,6 +253,19 @@ The same catalog join also returns the 2MASS designation via
 `gaiadr3.tmass_psc_xsc_best_neighbour` joined to `gaiadr1.tmass_original_valid`, and the
 UCAC4 id when a Gaia-hosted cross-match exists, because VSX prefers those over Gaia
 names in Other names (Manual, §IV.a and §V.b).
+
+*Amended 2026-10-20 (NEU-1705):* the join is four upload queries per chunk of 1,000 IDs,
+not one, because of how the archive treats anonymous async jobs: they are aborted after
+60 s, results are cut at 50,000 rows without warning, the 2MASS tables left-joined into
+the catalog query stall it, and a cone join is fast only with the circle on the archive's
+side (`CONTAINS(POINT(target), CIRCLE(neighbour))`). The queries are the catalog (colour,
+parallax, RUWE, `vari_*`), the 2MASS designation, neighbours within 20″, and the 120″ TESS
+field as a count, brightest G and combined G (the summed flux §6 step 7 tests). The 2MASS
+designation comes from `tmass_psc_xsc_join.original_psc_source_id`; joining
+`gaiadr1.tmass_original_valid` on it times out and adds nothing. No Gaia-hosted table maps
+DR3 sources to UCAC4 (only `gaiadr1.ucac4_best_neighbour`, keyed by DR1 IDs), so there is
+no UCAC4 id. Gaia's period per Target is taken from the most trusted table that has one:
+RR Lyrae, then Cepheid, then eclipsing binary (1 / frequency), then short timescale.
 
 ## 6. Analysis
 
