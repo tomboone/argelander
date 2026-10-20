@@ -16,6 +16,9 @@ under test.
 import asyncio
 import dataclasses
 import shutil
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -329,6 +332,36 @@ def test_download_prebuilt_fetches_only_the_chosen_rows_into_the_directory(
     assert search["radius"].to_value("arcsec") == pytest.approx(3.0)
     (download,) = downloads
     assert download == {"sectors": [15], "quality_bitmask": "none", "download_dir": str(tmp_path)}
+
+
+def test_overlapping_downloads_leave_stdout_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """lightkurve's `suppress_stdout` is not thread-safe: two overlapping downloads can put
+    back each other's closed devnull as `sys.stdout`. The downloads must take turns."""
+
+    class FakeResult:
+        def __len__(self) -> int:
+            return 1
+
+        @lk.utils.suppress_stdout
+        def download_all(self, **kwargs: Any) -> list[str]:
+            time.sleep(0.05)
+            return ["cutout"]
+
+    monkeypatch.setattr(tess.lk, "search_tesscut", lambda coord: FakeResult())
+    stdout = sys.stdout
+
+    def staggered(delay: float) -> list[Any]:
+        time.sleep(delay)
+        return download_cutouts(1.0, 2.0, tmp_path)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(staggered, [0.0, 0.01]))
+
+    assert results == [["cutout"], ["cutout"]]
+    assert sys.stdout is stdout
+    assert not sys.stdout.closed
 
 
 def cutout_fetcher(cutouts: Any) -> TessFetcher:
