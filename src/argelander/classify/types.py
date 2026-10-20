@@ -1,10 +1,30 @@
 """VSX type definitions and the fixed thresholds the classifier's rules read (spec §7).
 
 Part of what `PIPELINE_VERSION` stamps. So far it holds the colour-magnitude regions that
-`analysis/cmd.py` labels a Target with; the `TypeSpec` table follows with the rules.
+`analysis/cmd.py` labels a Target with and the phase-plot layout per type; the `TypeSpec`
+table follows with the rules.
 """
 
+import re
+
 from argelander.analysis.model import Region
+
+# Phase-plot layout per the VSX FAQ (spec §8), with phase 0 at the Proposal epoch. Eclipsing
+# binaries and ellipsoidal variables take their epoch at primary minimum and run from −0.25
+# to 1.25, which puts the secondary eclipse at 0.5 in the middle of the axis. Pulsators take
+# theirs at maximum and run from 0 to 2, which centres a maximum at 1.0; rotational and every
+# other type use the same range.
+ECLIPSER_PHASE_TYPES = frozenset({"EA", "EB", "EW", "ELL"})
+ECLIPSER_PHASE_RANGE = (-0.25, 1.25)
+DEFAULT_PHASE_RANGE = (0.0, 2.0)
+
+
+def phase_range(vsx_type: str) -> tuple[float, float]:
+    """The phase axis for a type. A compound or uncertain type (`EA+ELL`, `ELL|DSCT`, `EW:`,
+    `EA/SD`) is laid out by its first code."""
+    first = re.split(r"[+|/:]", vsx_type, maxsplit=1)[0]
+    return ECLIPSER_PHASE_RANGE if first in ECLIPSER_PHASE_TYPES else DEFAULT_PHASE_RANGE
+
 
 # Regions of Gaia's colour-magnitude diagram as polygons of (BP−RP, absolute G) vertices,
 # drawn coarsely around the sequences of the Gaia DR2 HR diagram (Gaia Collaboration,

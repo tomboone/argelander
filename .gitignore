@@ -15,10 +15,11 @@ __pycache__/
 .env.*
 !.env.example
 
-# Data: light-curve cache, plots, reference catalogs live on the USB SSD, not in git
-data/
-cache/
-plots/
+# Data: light-curve cache, plots, reference catalogs live on the USB SSD, not in git.
+# Anchored to the root so the `argelander.plots` package and its `data/` are not caught.
+/data/
+/cache/
+/plots/
 
 # IDE
 .idea/

@@ -73,22 +73,32 @@ def alias_test(lc: LightCurve, periods: Iterable[float]) -> AliasTest:
     )
 
 
+def aliases_of(period: float, survey: str) -> list[tuple[str, float]]:
+    """(relation, period) for each alias of `period` a survey is tested at, inside the
+    Lomb-Scargle range: 2P, P/2 and the sampling aliases."""
+    sampling = dict(SAMPLING_ALIASES)
+    if survey == "tess":
+        sampling["tess_orbit"] = TESS_ORBIT
+    tried = [("2P", 2 * period), ("P/2", period / 2)]
+    for label, interval in sampling.items():
+        for sign, direction in (("+", 1.0), ("-", -1.0)):
+            frequency = abs(1.0 / period + direction / interval)
+            if frequency > 0:
+                tried.append((label + sign, 1.0 / frequency))
+    low, high = LS_PERIOD_RANGE
+    return [t for t in tried if low <= t[1] <= high]
+
+
 def _hypotheses(period: float, survey: str, n_bins: int) -> list[tuple[str, float, int]]:
     """(relation, period, bins) for a candidate and its aliases inside the Lomb-Scargle range.
 
     The candidate itself is always kept, so a Gaia period outside the range is still scored.
     """
-    sampling = dict(SAMPLING_ALIASES)
-    if survey == "tess":
-        sampling["tess_orbit"] = TESS_ORBIT
-    tried = [("2P", 2 * period, 2 * n_bins), ("P/2", period / 2, n_bins // 2)]
-    for label, interval in sampling.items():
-        for sign, direction in (("+", 1.0), ("-", -1.0)):
-            frequency = abs(1.0 / period + direction / interval)
-            if frequency > 0:
-                tried.append((label + sign, 1.0 / frequency, n_bins))
-    low, high = LS_PERIOD_RANGE
-    return [("P", period, n_bins)] + [t for t in tried if low <= t[1] <= high]
+    bins = {"2P": 2 * n_bins, "P/2": n_bins // 2}
+    return [("P", period, n_bins)] + [
+        (relation, alias, bins.get(relation, n_bins))
+        for relation, alias in aliases_of(period, survey)
+    ]
 
 
 def _fold(

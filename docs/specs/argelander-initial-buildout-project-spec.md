@@ -95,12 +95,15 @@ src/argelander/
     confidence.py      normalised weighted sum
     propose.py         Analysis → Proposal (and supersede logic)
   plots/
-    phase.py  periodogram.py  cmd.py   matplotlib, MPLBACKEND=Agg, PNG to PLOTS_DIR
+    phase.py  periodogram.py  cmd.py  combined.py   matplotlib Figures, no pyplot; PNG to PLOTS_DIR
+    render.py          render_all(): every plot of one Analysis, submission.png under 1 MB
+    data/              committed Gaia DR3 background for cmd.png
   web/
     app.py             FastAPI, Jinja2 templates, htmx; routes in section 9
     templates/  static/
   submission/
     form.py            Proposal + Review → VSX form field values and reference text
+                       (passbands and period precision first, NEU-1709: the plots print them)
     tracker.py         Submission lifecycle and Verdict recording
 tests/                 pytest; tests/fixtures/*.parquet (section 11)
 notebooks/             prototype notebooks; import from argelander, never define science here
