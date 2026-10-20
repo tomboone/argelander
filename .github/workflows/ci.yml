@@ -1,0 +1,64 @@
+name: CI
+
+# Lint, format, typecheck, offline tests, the Alembic single-head check and the image build
+# (spec §11). Runs on a GitHub-hosted runner straight from uv, not inside the built image:
+# that would be slower for no extra coverage at this stage. Tests marked `live` hit the
+# archives and never run here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # updates/dependencies is the Dependabot integration branch (spec §12).
+    branches: [main, updates/dependencies]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        # uv reads the interpreter from .python-version (3.12).
+        uses: astral-sh/setup-uv@v10
+
+      - name: Sync dependencies
+        # --locked fails if uv.lock is out of date with pyproject.toml.
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check
+
+      - name: Format check
+        run: uv run ruff format --check
+
+      - name: Typecheck
+        run: uv run ty check
+
+      - name: Test
+        run: uv run pytest -m "not live"
+
+      - name: Alembic single-head check
+        # Skips until the migrations directory exists (spec §3.1).
+        if: hashFiles('src/argelander/alembic/env.py') != ''
+        run: |
+          out=$(uv run alembic heads)
+          heads=$(printf '%s\n' "$out" | grep -c '(head)' || true)
+          echo "$out"
+          if [ "$heads" -gt 1 ]; then
+            echo "::error::Alembic has $heads heads; merge them with 'alembic merge heads'."
+            exit 1
+          fi
+
+      - name: Docker build
+        # Skips until NEU-1696 adds the Dockerfile.
+        if: hashFiles('Dockerfile') != ''
+        run: docker build --tag argelander:ci .
