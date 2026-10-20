@@ -134,6 +134,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },
+    { name = "astroquery" },
     { name = "lightkurve" },
     { name = "numpy" },
     { name = "pyarrow" },
@@ -155,6 +156,7 @@ notebook = [
 [package.metadata]
 requires-dist = [
     { name = "astropy", specifier = ">=8.0.2" },
+    { name = "astroquery", specifier = ">=0.4.11" },
     { name = "lightkurve", specifier = ">=2.6" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "pyarrow", specifier = ">=26.0.0" },
