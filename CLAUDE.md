@@ -49,7 +49,7 @@ Decisions made after the handover was written (2026-10-19):
 
 ## Conventions
 
-- Python 3.12, uv + pyproject.toml, ruff. Type hints use `X | None`, never
+- Python 3.12, uv + pyproject.toml, ruff, ty. Type hints use `X | None`, never
   `Optional[X]`. No `from __future__ import annotations`.
 - Docker-only local dev; no local venvs.
 - Base image `python:3.12-slim`. `MPLBACKEND=Agg`. Polars needs
