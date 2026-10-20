@@ -234,6 +234,15 @@ Order of operations in `analysis/worker.py` for one Target:
    → BJD_TDB by adding 2457000; Gaia TCB → JD by adding 2455197.5, then TCB→TDB via
    astropy; ASAS-SN HJD (UTC) → BJD_TDB via astropy. `time.py` has a test against a
    published epoch of a known eclipsing binary to within 1 s.
+
+   *Amended 2026-10-19 (NEU-1699):* no eclipsing-binary epoch published in both HJD (UTC)
+   and BJD_TDB could be found, and Eastman's online converter, which papers use for that
+   conversion, is offline. The ZTF and ASAS-SN tests use barycorrpy's published UTC →
+   BJD_TDB reference for τ Ceti instead (Kanodia & Wright 2018; an independent
+   implementation on JPL DE430). ASAS-SN's input HJD is built from the Astronomical
+   Almanac's low-precision Sun, not from astropy. TESS is checked against the BTJD
+   definition and Gaia against IAU 2006 Resolution B3. All agree within 1 s; ZTF and
+   ASAS-SN agree within 0.05 s.
 3. **Clean** (`clean.py`): drop flagged points, sigma-clip at 5σ around a running median,
    require ≥ 30 points per band to proceed.
 4. **Periodogram** (`periodogram.py`): astropy `LombScargle` per band over 0.05–100 d
