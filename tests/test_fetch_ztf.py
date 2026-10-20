@@ -36,8 +36,9 @@ TARGET = TargetRef(
     dec=55.01459,
     vsx_name="CSS_J173907.6+550053",
 )
-G_OIDS = ["1830101400004824", "1831104300004145", "797112400008865"]
-R_OIDS = ["1831204300013878", "797212400007704"]
+# In numeric order, as `source_key` and `meta["oids"]` list them.
+G_OIDS = ["797112400008865", "1830101400004824", "1831104300004145"]
+R_OIDS = ["797212400007704", "1831204300013878"]
 
 
 def recorded_rows() -> list[dict[str, str]]:
@@ -133,12 +134,12 @@ def test_an_offset_above_the_threshold_sets_blend_suspect() -> None:
 
 def test_a_single_oid_band_has_no_offsets() -> None:
     lines = RECORDED.read_text().splitlines(keepends=True)
-    single = "".join([lines[0], *(line for line in lines[1:] if line.startswith(R_OIDS[1]))])
+    single = "".join([lines[0], *(line for line in lines[1:] if line.startswith(R_OIDS[0]))])
 
     curves = fetch_recorded(single)
 
     assert list(curves) == ["r"]
-    assert curves["r"].source_key == R_OIDS[1]
+    assert curves["r"].source_key == R_OIDS[0]
     assert curves["r"].meta["zero_point_offsets"] == {}
     assert curves["r"].meta["blend_suspect"] is False
 
@@ -189,14 +190,27 @@ def test_query_irsa_asks_for_g_and_r_within_one_and_a_half_arcsec(
 
 @pytest.mark.live
 def test_live_fetch_returns_g_and_r_in_bjd_tdb() -> None:
-    fetcher = ZtfFetcher(ArchiveLimits({"irsa": 1}), max_attempts=3)
+    responses: list[str] = []
+
+    def recording_query(ra: float, dec: float) -> str:
+        responses.append(query_irsa(ra, dec))
+        return responses[-1]
+
+    fetcher = ZtfFetcher(ArchiveLimits({"irsa": 1}), max_attempts=3, query=recording_query)
 
     curves = {lc.band: lc for lc in asyncio.run(fetcher.fetch(TARGET))}
 
     assert sorted(curves) == ["g", "r"]
-    for lc in curves.values():
-        assert len(lc.time) > 100
-        # ZTF began in March 2018: JD 2458178.
-        assert lc.time.min() > 2458178.0
-        assert set(lc.meta["oids"]) == set(lc.source_key.split("+"))
-        assert lc.meta["time_system"] == "MJD UTC at Palomar"
+    (response,) = responses
+    rows = list(csv.DictReader(response.splitlines()))
+    for code, lc in (("zg", curves["g"]), ("zr", curves["r"])):
+        mjd = sorted(
+            float(r["mjd"]) for r in rows if r["filtercode"] == code and r["catflags"] == "0"
+        )
+        assert len(lc.time) == len(mjd) > 100
+        # BJD_TDB, not MJD or plain JD: the shift from JD_UTC is TDB−UTC (~69 s) plus a
+        # barycentric correction under 8.3 light-minutes that swings with the seasons. This
+        # Target sits ~78° from the ecliptic, so the swing is still well over a minute.
+        shift = lc.time - (np.array(mjd) + 2400000.5)
+        assert np.all(np.abs(shift) < 0.007)
+        assert np.ptp(shift) > 60.0 / 86400.0

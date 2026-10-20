@@ -6,8 +6,8 @@ Per band, the oid with the most good points is the reference; every other oid is
 the difference between the two medians so the merged curve does not show the field-to-field
 offsets as variability. An offset above 0.05 mag is more than a zero point explains, most
 likely a neighbour blended into one field's photometry, so the band is flagged
-`blend_suspect`. Keeping only the reference oid would avoid the question and throw away half
-the epochs.
+`blend_suspect` in its `meta`; the analyzer's blend step (spec §6) lifts it to the Target.
+Keeping only the reference oid would avoid the question and throw away half the epochs.
 
 Only rows with `catflags == 0` are kept; IRSA's own `BAD_CATFLAGS_MASK` is not used, so the
 filter is visible here and in the tests.
@@ -88,7 +88,7 @@ def _merge_oids(
     dec: float,
     fetched_at: str,
 ) -> LightCurve:
-    oids = sorted(by_oid)
+    oids = sorted(by_oid, key=int)
     # Ties go to the lowest oid, so the choice does not depend on row order.
     reference = max(oids, key=lambda oid: len(by_oid[oid]))
     reference_median = statistics.median(mag for _, mag, _ in by_oid[reference])
