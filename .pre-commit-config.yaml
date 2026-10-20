@@ -1,0 +1,63 @@
+# Every hook runs INSIDE the `app` dev container, never on the host (spec §11). The
+# Homebrew pre-commit framework is only the orchestrator: its private Python never imports
+# or lints this code. The container (UV_PROJECT_ENVIRONMENT=/opt/venv) is the single source
+# of truth for the toolchain, so a commit is checked against the exact ruff, ty and pytest
+# that uv.lock pins. This mirrors the Taskfile (`task test` runs the same command in the same
+# container). `-T` disables TTY allocation, which pre-commit's non-interactive run needs.
+#
+# The stack must be up (`task up`) to commit. With it down, the `stack-up` hook fails first
+# with that instruction and stops the run, so no hook hangs or buries the cause.
+#
+# Install with `task hooks` (run by `task up`), which registers both stages.
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: stack-up
+        name: app container is running
+        entry: sh -c 'docker compose exec -T app true >/dev/null 2>&1 || { echo "The app container is not running; start the stack with task up" >&2; exit 1; }'
+        language: system
+        pass_filenames: false
+        always_run: true
+        fail_fast: true
+        stages: [pre-commit, pre-push]
+
+      # Fix mode, not check mode: a failed commit leaves the fixes in the working tree, so one
+      # `git add` makes the retry pass. `--force-exclude` makes ruff honour `extend-exclude`
+      # (pyproject: docs) for the explicit paths pre-commit passes in.
+      - id: ruff
+        name: ruff (container)
+        entry: docker compose exec -T app ruff check --fix --force-exclude
+        language: system
+        types_or: [python, jupyter]
+        require_serial: true
+        stages: [pre-commit]
+
+      - id: ruff-format
+        name: ruff-format (container)
+        entry: docker compose exec -T app ruff format --force-exclude
+        language: system
+        types_or: [python, jupyter]
+        require_serial: true
+        stages: [pre-commit]
+
+      # Whole-project check: ty resolves imports across files, so it ignores the file list.
+      - id: ty
+        name: ty (container)
+        entry: docker compose exec -T app ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
+      # Push stage, so the slow step runs once per push rather than once per commit.
+      - id: pytest
+        name: pytest (container)
+        entry: docker compose exec -T app pytest -m "not live"
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-push]

@@ -39,6 +39,24 @@ Python 3.12, FastAPI with server-rendered templates, Postgres (results and the
 job queue), Parquet light-curve cache, Docker Compose on a Mac mini behind a
 Tailscale sidecar.
 
+## Development
+
+Docker only; nothing runs in a host virtualenv. Needs Docker, [go-task](https://taskfile.dev)
+and the [pre-commit](https://pre-commit.com) framework (`brew install go-task pre-commit`).
+
+```sh
+task up          # postgres, app and jupyter; installs the git hooks
+task test        # offline tests in the app container
+task lint        # ruff check + format check
+task typecheck   # ty
+task down
+```
+
+JupyterLab is at <http://localhost:8888/lab> and Postgres at `localhost:5433` (5432 is left
+to the shared localdev Postgres); copy `.env.example` to `.env` to change either. The
+pre-commit and pre-push hooks run inside the app container, so the stack must be up to
+commit.
+
 ## License
 
 [MIT](LICENSE).
