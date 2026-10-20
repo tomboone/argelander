@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with astropy.io.votable version 8.0.2
+     http://www.astropy.org/ -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/VOTable-1.4.xsd">
+ <RESOURCE type="results">
+  <TABLE>
+   <FIELD ID="source_id" datatype="long" name="source_id"/>
+   <FIELD ID="original_psc_source_id" arraysize="*" datatype="char" name="original_psc_source_id" ucd="meta.id.cross">
+    <DESCRIPTION>
+     Original 2MASS PSC source identifier
+    </DESCRIPTION>
+   </FIELD>
+   <DATA>
+    <TABLEDATA>
+     <TR>
+      <TD>1440307936865442176</TD>
+      <TD>17212328+6246274</TD>
+     </TR>
+     <TR>
+      <TD>1438034941388614528</TD>
+      <TD>17033389+6048501</TD>
+     </TR>
+     <TR>
+      <TD>1422733312942999424</TD>
+      <TD>17515845+5824480</TD>
+     </TR>
+     <TR>
+      <TD>1440250422959420800</TD>
+      <TD>17325953+6323371</TD>
+     </TR>
+     <TR>
+      <TD>1418010841782026880</TD>
+      <TD>17390768+5500525</TD>
+     </TR>
+    </TABLEDATA>
+   </DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

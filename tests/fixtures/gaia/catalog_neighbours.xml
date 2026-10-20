@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with astropy.io.votable version 8.0.2
+     http://www.astropy.org/ -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/VOTable-1.4.xsd">
+ <RESOURCE type="results">
+  <TABLE>
+   <FIELD ID="source_id" datatype="long" name="source_id" ucd="meta.id">
+    <DESCRIPTION>
+     Unique source identifier (unique within a particular Data
+     Release)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="neighbour_id" datatype="long" name="neighbour_id" ucd="meta.id">
+    <DESCRIPTION>
+     Unique source identifier (unique within a particular Data
+     Release)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="separation" datatype="double" name="separation"/>
+   <FIELD ID="phot_g_mean_mag" datatype="float" name="phot_g_mean_mag" ucd="phot.mag;em.opt" unit="mag">
+    <DESCRIPTION>
+     G-band mean magnitude
+    </DESCRIPTION>
+   </FIELD>
+   <DATA>
+    <TABLEDATA>
+     <TR>
+      <TD>1435149135683337216</TD>
+      <TD>1435149131387121280</TD>
+      <TD>10.141968874845602</TD>
+      <TD>20.67582</TD>
+     </TR>
+     <TR>
+      <TD>1435149135683337216</TD>
+      <TD>1435149135683337344</TD>
+      <TD>1.7779838923558315</TD>
+      <TD>14.903752</TD>
+     </TR>
+     <TR>
+      <TD>1440307936865442176</TD>
+      <TD>1440307941161261440</TD>
+      <TD>3.3299630820890838</TD>
+      <TD>16.1632</TD>
+     </TR>
+     <TR>
+      <TD>1418010841782026880</TD>
+      <TD>1418010837486848384</TD>
+      <TD>16.680055841805927</TD>
+      <TD>18.967558</TD>
+     </TR>
+     <TR>
+      <TD>1422733312942999424</TD>
+      <TD>1422733308647289344</TD>
+      <TD>18.67462563297769</TD>
+      <TD>20.838861</TD>
+     </TR>
+     <TR>
+      <TD>1435149135683337216</TD>
+      <TD>1435149135683337984</TD>
+      <TD>13.879876453833884</TD>
+      <TD>20.429096</TD>
+     </TR>
+    </TABLEDATA>
+   </DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>
