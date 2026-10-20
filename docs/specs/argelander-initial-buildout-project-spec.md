@@ -472,12 +472,14 @@ from the grilling session:
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
-- Pre-commit in two stages. At commit: ruff in fix mode plus ruff format, installed on the
-  host with Homebrew (pre-commit's own hook cache, not a project venv, so the Docker-only
-  rule holds). At push: `task typecheck` and `task test`, which run ty and the offline
-  pytest suite inside the app container, because both need the project's installed
-  dependencies. Hooks fix rather than only check, so a failed commit is one `git add` from
-  passing. Commit normally.
+- Pre-commit hooks all run inside the `app` container, never on the host, following the
+  pattern of the other container-based repos (music-discovery-engine is the template): the
+  Homebrew-installed pre-commit framework is the orchestrator only, and every hook is
+  `repo: local`, `language: system`, `entry: docker compose exec -T app <tool>`. At the
+  commit stage: ruff in fix mode, ruff format, and `ty check`. At the push stage:
+  `pytest -m "not live"`. Hooks fix rather than only check, so a failed commit is one
+  `git add` from passing. The stack has to be up to commit; with it down a hook fails fast
+  with a clear message. Commit normally.
 
 ## 12. Conventions
 
