@@ -543,6 +543,23 @@ Order of operations in `analysis/worker.py` for one Target:
    giant branch), so a δ Scuti star on the upper main sequence is labelled instability
    strip. Without a significant parallax or a colour the region is unknown. Extinction
    correction is a later improvement.
+
+   *Amended 2026-10-21 (NEU-1720):* the classifier's rules read numbers, not Light Curves, so
+   the pipeline also measures `Analysis.shape` and `Analysis.variability`
+   (`analysis/shape.py`). `shape` folds one band at the agreed period (none without
+   Agreement): the band whose fold stands clearest above its scatter, preferring surveys the
+   blend checks found clean, then magnitude bands over TESS flux, whose amplitude its 21″
+   pixels dilute; Gaia epochs are never folded. From the binned fold (up to 50 bins, medians
+   smoothed over three) it takes the amplitude, scaled to V by `types.AMPLITUDE_TO_V`, the
+   primary minimum's width at half depth, the secondary's depth as a fraction of the
+   primary's, and the fraction of the cycle within a tenth of the amplitude of maximum; from
+   a sixth-order Fourier fit, the rise time, the curve's skewness and R21. `variability` is
+   the most variable clean band's 5–95 % spread over 3.29 × its median error, and is None
+   when every survey is contaminated. Neither is stored in `analyses` yet: the classifier
+   runs on the in-memory Analysis in the hand-off (NEU-1721). The eclipse width and depth
+   ratio come from this fold, not from BLS as NEU-1720 first said: BLS fits a single box, so
+   it has no secondary depth, and a box's duration means little on an EW star's continuous
+   curve.
 9. Write the `analyses` row; hand off to `classify.propose` and `plots`.
 
    *Amended 2026-10-21 (NEU-1718):* `argelander analyze-worker` takes one analyze Job a
@@ -598,6 +615,32 @@ every type that scored. A Target with no Agreement produces a Proposal of type `
 (unchanged) with low Confidence so Tom can see why it failed. Explanations are one
 sentence each and are shown verbatim in the review app and copied into Submission
 reference text when relevant.
+
+*Amended 2026-10-21 (NEU-1720):* the initial rule set is one module per concern under
+`classify/rules/`: `ranges` (period and amplitude against each `TypeSpec`; ROT against BY's
+ranges as soft bounds, since VSX points there), `eclipse` (an eclipse is a minimum at most
+0.22 of the cycle wide at half depth; EW's near-equal minima, EB's shallower secondary, EA's
+flat maxima), `pulsation` (rise time for steep against symmetric curves, skewness for RRAB
+against RRC, the DSCT/HADS split at 0.15 mag, R21 for DCEP against DCEPS), `luminosity` (DCEP
+against CW by the reddening-free Wesenheit magnitude W = G − 1.90 (BP − RP) and Ripepi et al.
+2019's period–Wesenheit relation, CW 0.7–2 mag fainter), `cmd` (`types.EXPECTED_REGIONS`),
+`colour`, `gaia` (supports only, at 0.25), `agreement` (no Agreement opposes every periodic
+type at full weight; Agreement opposes L and CST) and `variability` (CST and L). Weights: a
+hard bound 1, a soft bound 0.5, a statement the type document does not make (no period range
+for RS) neutral at 0.5 so a thinly defined type is not confirmed by fewer checks, missing
+data neutral at 0; the CMD region weighs 0.5 and colour 0.25, or 0.5 against a star bluer
+than its type, since reddening only makes stars redder. The shape thresholds are in
+`types.py`, measured on the 20 positives, since the type document's shape statements carry
+no numbers: the fixture result below is therefore in-sample, and the margins are thin (a
+steep rise at 0.33 of the cycle or less, HADS and DCEP at 0.29–0.32).
+`registry.evaluate(analysis, target)` runs every rule for every
+type in `types.SCORED_TYPES` order, the initial types first, so a tie Gaia does not break
+goes to the initial type (evidence that cannot tell ROT from BY proposes ROT). On the fixture
+set 18 of 20 positives get their published type; the two misses are low-amplitude SR stars,
+which RS fits as well, and are strict xfails in `tests/test_prototype.py`. Blends and
+constants score CST. The alias traps reach Agreement at their true periods and are classified
+there as their VSX type, so they are not held to the "no type above 0.5" rule meant for stars
+with no period.
 
 **Magnitude range** (VSX FAQ): `mag_max` and `mag_min` are the mean magnitudes at
 maximum and minimum read from the binned phase curve of the chosen band after outlier

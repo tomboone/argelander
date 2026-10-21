@@ -2,7 +2,8 @@
 
 Clean each band, search it with Lomb-Scargle and BLS, rank every candidate and its aliases,
 judge the blend checks, let the sources vote on a period with contaminated surveys at half
-weight, and place the Target on the colour-magnitude diagram. Gaia's published period is
+weight, place the Target on the colour-magnitude diagram, and measure the curve's shape at
+the agreed period and its variability for the classifier. Gaia's published period is
 the first hypothesis in every band and a source in Agreement.
 
 `analysis/worker.py` (M4) wraps this with the Cache reads and the `analyses` row; the
@@ -19,6 +20,7 @@ from argelander.analysis.clean import clean
 from argelander.analysis.cmd import cmd_position
 from argelander.analysis.model import Analysis
 from argelander.analysis.periodogram import box_least_squares, lomb_scargle
+from argelander.analysis.shape import shape, variability
 from argelander.catalog.gaia import GaiaRecord
 from argelander.lightcurve import LightCurve
 
@@ -46,4 +48,6 @@ def analyze(
         analysis.cmd = cmd_position(record)
     contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
     analysis.agreement = agreement(analysis.alias_tests, gaia_period, contaminated)
+    analysis.shape = shape(cleaned, analysis.agreement, contaminated)
+    analysis.variability = variability(cleaned, contaminated)
     return analysis, cleaned

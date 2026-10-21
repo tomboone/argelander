@@ -291,6 +291,133 @@ TYPE_SPECS: dict[str, TypeSpec] = {
     )
 }
 
+# Every type the rules score, in the order Confidence sees them: the initial types as spec §7
+# lists them, then CST, then the confusion classes. A tie the Gaia classifier does not break
+# goes to the first scored, so evidence that cannot tell ROT from BY proposes ROT.
+SCORED_TYPES: tuple[str, ...] = (
+    *("EW", "EA", "EB", "RRAB", "RRC", "DSCT", "HADS", "DCEP", "SR", "L", "M", "ROT", "ELL"),
+    CONSTANT,
+    *(code for code in TYPE_SPECS if code not in INITIAL_TYPES | {CONSTANT, UNSPECIFIED}),
+)
+# Types with no period, which the period, amplitude and shape rules leave alone.
+APERIODIC_TYPES = frozenset({"L", CONSTANT, UNSPECIFIED})
+PERIODIC_TYPES = frozenset(SCORED_TYPES) - APERIODIC_TYPES
+
+# VSX states no ranges for ROT and points at BY's as guidance; the period and amplitude rules
+# score ROT against BY's ranges, as soft bounds, and the colour rule against BY's colour.
+GUIDANCE = {"ROT": "BY"}
+
+# Evidence weights (spec §7, docs/reference/vsx-type-ranges.md): a hard bound weighs 1, a
+# soft bound ("usually") about half. A rule that cannot judge for want of data weighs 0, and
+# a type whose definition states nothing for a rule to check weighs `UNSTATED_WEIGHT`, so a
+# type defined by fewer statements is not confirmed by fewer checks.
+HARD_WEIGHT = 1.0
+SOFT_WEIGHT = 0.5
+UNSTATED_WEIGHT = 0.5
+# The colour-magnitude polygons are coarse and the colours not dereddened.
+CMD_WEIGHT = 0.5
+# A colour hint is a spectral type in the type document, and a light curve's shape names a
+# type before its colour does (VSX's EB is "B–A" yet holds K-type contact binaries). Redder
+# than a hint may be interstellar reddening, so it weighs least.
+COLOUR_SUPPORT_WEIGHT = 0.25
+COLOUR_AGAINST_WEIGHT = 0.5
+COLOUR_REDDENED_WEIGHT = 0.25
+# Gaia's classifier is the kind of bulk classification under review, so it only supports.
+GAIA_WEIGHT = 0.25
+
+# V amplitude per unit amplitude in each band: pulsation amplitudes shrink to the red, about
+# A_g ≈ 1.15 A_V and A_r ≈ 0.85 A_V for RR Lyrae and Cepheids. Asserted, not measured on the
+# fixtures; TESS's broad red band is diluted by its large pixels as well.
+AMPLITUDE_TO_V = {
+    "V": 1.0,
+    "g": 0.85,
+    "r": 1.2,
+    "i": 1.4,
+    "G": 1.0,
+    "BP": 0.85,
+    "RP": 1.3,
+    "T": 1.4,
+}
+
+# Shape thresholds, measured on the 20 positives of the fixture set (NEU-1720), each in the
+# `Shape` field of the same meaning. The eclipse width at half depth is 0.08–0.16 of the
+# cycle for every eclipser and 0.38 or more for every pulsator.
+# A minimum's width is measured at half its depth, the secondary looked for 0.3–0.7 of a cycle
+# after primary minimum, and light within a tenth of the amplitude of maximum counts as at it.
+HALF_DEPTH = 0.5
+SECONDARY_WINDOW = (0.3, 0.7)
+NEAR_MAXIMUM = 0.1
+ECLIPSE_MAX_WIDTH = 0.22  # at or under: an eclipse
+BROAD_MIN_WIDTH = 0.30  # at or over: a broad minimum, no eclipse
+# Secondary depth as a fraction of the primary's: EW 0.75–0.83, EB 0.34–0.52, EA 0.06–0.53.
+EQUAL_MINIMA = 0.70  # at or over: near-equal minima (EW)
+UNEQUAL_MINIMA = 0.55  # under: minima too unequal for EW
+SHALLOWER_SECONDARY = (0.15, 0.65)  # EB's "considerably shallower" secondary
+ABSENT_SECONDARY = 0.10  # under: no secondary, which EB always has
+NEAR_EQUAL_SECONDARY = 0.80  # over: near-equal minima, which make an EB an EW
+# The fraction of the cycle near maximum light: EA 0.60–0.86, EB 0.44–0.48, EW 0.30–0.36.
+FLAT_MAXIMA = 0.55  # at or over: light nearly constant between eclipses (EA)
+CONTINUOUS_LIGHT = 0.50  # under: continuous variation, contact times unreadable (EB, EW)
+# Rise time from minimum to maximum: RRAB 0.15–0.16, HADS 0.29, DCEP 0.29–0.32, RRC
+# 0.34–0.41, DSCT 0.45–0.55.
+ASYMMETRIC_RISE = 0.33  # at or under: a steep rise
+SYMMETRIC_RISE = 0.38  # at or over: (near-)symmetric
+# Skewness of the fitted magnitudes, sharp maxima negative: RRAB about −0.8, RRC about −0.2.
+RRAB_MAX_SKEWNESS = -0.5
+RRC_MIN_SKEWNESS = -0.45
+# DSCT with a larger amplitude and an asymmetric curve is HADS (VSX type designations).
+HADS_MIN_AMPLITUDE = 0.15
+# Fourier R21 of a fundamental-mode Cepheid's curve (KO Cep: 0.32–0.35) against the
+# near-sinusoid of a first-overtone one (DCEPS) or a spotted star.
+DCEP_MIN_R21 = 0.25
+DCEP_LOW_R21 = 0.15
+DCEPS_MAX_R21 = 0.20
+DCEPS_HIGH_R21 = 0.30
+
+# BP−RP (observed) bounds for each colour hint: (supports from, supports to, against below,
+# against above). Between a support bound and an against bound the colour is no evidence.
+COLOUR_BOUNDS: dict[ColourHint, tuple[float, float, float, float]] = {
+    "blue": (-1.0, 0.4, -1.0, 0.8),  # B–A
+    "intermediate": (0.0, 1.1, -0.1, 1.6),  # A–early K: the instability strip
+    "red": (1.0, 6.0, 0.7, 6.0),  # late K and M
+}
+
+# The colour-magnitude regions each type belongs in (`CMD_REGIONS`). A type not listed can
+# sit anywhere (eclipsing binaries, ellipsoidal variables) or has no region drawn for it.
+EXPECTED_REGIONS: dict[str, frozenset[Region]] = {
+    "EW": frozenset({"main_sequence"}),
+    "RRAB": frozenset({"instability_strip"}),
+    "RRC": frozenset({"instability_strip"}),
+    "RRD": frozenset({"instability_strip"}),
+    **dict.fromkeys(
+        ("DSCT", "HADS", "SXPHE", "GDOR"), frozenset({"instability_strip", "main_sequence"})
+    ),
+    **dict.fromkeys(
+        ("DCEP", "DCEPS", "CWA", "CWB", "ACEP"), frozenset({"instability_strip", "giant_branch"})
+    ),
+    **dict.fromkeys(("SR", "L", "M", "RS"), frozenset({"giant_branch"})),
+    **dict.fromkeys(("ROT", "BY", "SPB", "BCEP", "ACV"), frozenset({"main_sequence"})),
+}
+
+# Cepheid luminosity from Gaia's reddening-free Wesenheit magnitude, W = G − 1.90 (BP − RP),
+# made absolute with the parallax (Ripepi et al. 2019, A&A 625, A14). The classical-Cepheid
+# period–Wesenheit relation is their LMC fit, W = 15.880 − 3.317 log P, at the LMC distance
+# modulus 18.477 (Pietrzyński et al. 2019). VSX puts Type II Cepheids 0.7–2 mag fainter at
+# the same period. A first-overtone period is fundamentalised by P1/P0 = 0.71 first.
+WESENHEIT_COLOUR = 1.90
+DCEP_PW = (-2.597, -3.317)  # absolute W = intercept + slope × log10 P
+CW_FAINTER = (0.7, 2.0)
+DCEP_MAX_FAINTER = 0.35  # within this of the DCEP relation, or brighter: a classical Cepheid
+NOT_CEPHEID_FAINTER = 2.5  # fainter than the DCEP relation by more: no Cepheid of either kind
+NOT_CEPHEID_BRIGHTER = -1.5
+OVERTONE_RATIO = 0.71
+
+# The spread of a band's magnitudes over the spread its errors give (`Variability.excess`):
+# the constant stars of the fixture set reach 1.4 in ZTF, the least variable positive 1.4
+# (a 0.05 mag δ Scuti star) and an L star should reach far more.
+VARIABLE_EXCESS = 3.0  # at or over: variable
+CONSTANT_EXCESS = 2.0  # at or under: constant within the errors
+
 # The VSX types each Gaia DR3 `vari_classifier_result.best_class_name` covers, and those its
 # RR Lyrae or Cepheid subclass narrows them to. Confidence breaks ties toward these.
 GAIA_CLASS_TYPES: dict[str, frozenset[str]] = {

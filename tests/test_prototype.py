@@ -5,6 +5,10 @@ aliases → blend → Agreement → CMD, on its trimmed Light Curves and the Gai
 recorded in `fixtures/catalog/`; `argelander.prototype.judge` applies the criterion. ASAS-SN
 is a coverage gap until NEU-1796, so Agreement rests on ZTF g, ZTF r, TESS and Gaia's period.
 
+The classifier's rules (NEU-1720) are held to the same set: at least `MIN_CLASSIFIED` of the 20
+positives get their published type as the best-scoring type, and a blend or constant star
+scores "not variable" or no type above 0.5.
+
 BoxLeastSquares over ZTF's 7.5-year baseline is the slow step, so the stars run in parallel,
 once for the module. The tests that need them are marked `gate`, which CI runs
 as its own job, only when the science can have changed (NEU-1838); `task test` runs them.
@@ -21,9 +25,14 @@ from astropy.table import Table
 from argelander.analysis.model import Agreement, Analysis, Blend, Contamination
 from argelander.analysis.pipeline import analyze
 from argelander.catalog.gaia import GaiaRecord, records_from_tables
+from argelander.classify import registry, types
+from argelander.classify.confidence import best_type, scores
+from argelander.classify.rules.gaia import target_gaia_types
+from argelander.db.models import Target
 from argelander.lightcurve import LightCurve, load_target
 from argelander.plots import render_all
 from argelander.prototype import judge, relation
+from argelander.selector import gaia_columns
 
 FIXTURES = Path(__file__).parent / "fixtures"
 LIGHT_CURVES = FIXTURES / "lightcurves"
@@ -33,6 +42,17 @@ STARS = yaml.safe_load((FIXTURES / "manifest.yaml").read_text())
 # Stars the pipeline is known to fail, with why. Strict: one that starts passing fails the
 # run, so the entry is removed in the change that fixed it.
 KNOWN_FAILURES: dict[str, str] = {}
+
+# Positives the classifier proposes another type for, with why; strict, as above.
+LOW_AMPLITUDE_SR = (
+    "A {0} mag red giant at {1} d: RS fits its period, amplitude, colour and place on the "
+    "giant branch as well as SR does, and SR's usual 1–2 mag amplitude opposes SR."
+)
+KNOWN_MISCLASSIFIED: dict[str, str] = {
+    "ASASSN-V J194707.50+750321.7": LOW_AMPLITUDE_SR.format(0.15, 55.1) + " Gaia says RS.",
+    "ASASSN-V J192915.72+664402.8": LOW_AMPLITUDE_SR.format(0.07, 42.3),
+}
+MIN_CLASSIFIED = 16  # of the 20 positives
 
 
 def catalog() -> dict[int, GaiaRecord]:
@@ -60,14 +80,29 @@ def analyses() -> dict[str, tuple[Analysis, list[LightCurve]]]:
         return dict(zip((s["star"] for s in STARS), pool.map(run, STARS), strict=True))
 
 
-def gate_case(star: dict) -> object:
-    reason = KNOWN_FAILURES.get(star["star"])
+def gate_case(star: dict, known: dict[str, str] = KNOWN_FAILURES) -> object:
+    reason = known.get(star["star"])
     marks = [pytest.mark.xfail(reason=reason, strict=True)] if reason else []
     return pytest.param(star, id=star["star"], marks=marks)
 
 
+def classified(star: dict, analysis: Analysis) -> tuple[str | None, dict[str, float]]:
+    """The best-scoring type for `star`, and every type's Confidence."""
+    target = Target(
+        gaia_source_id=star["gaia_source_id"], **gaia_columns(catalog()[star["gaia_source_id"]])
+    )
+    scored = scores(registry.evaluate(analysis, target))
+    return best_type(scored, target_gaia_types(target)), scored
+
+
 def test_known_failures_are_manifest_stars() -> None:
     assert set(KNOWN_FAILURES) <= {s["star"] for s in STARS}
+
+
+def test_known_misclassifications_are_few_enough_positives() -> None:
+    positives = {s["star"] for s in STARS if s["role"] == "positive"}
+    assert set(KNOWN_MISCLASSIFIED) <= positives
+    assert len(positives) - len(KNOWN_MISCLASSIFIED) >= MIN_CLASSIFIED
 
 
 def test_catalog_has_a_record_for_every_star() -> None:
@@ -80,6 +115,40 @@ def test_star_passes_the_gate(star: dict, analyses: dict) -> None:
     analysis, _ = analyses[star["star"]]
     result = judge(star, analysis)
     assert result.passed, result.reason
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize(
+    "star", [gate_case(s, KNOWN_MISCLASSIFIED) for s in STARS if s["role"] == "positive"]
+)
+def test_positive_gets_its_published_type(star: dict, analyses: dict) -> None:
+    analysis, _ = analyses[star["star"]]
+    proposed, scored = classified(star, analysis)
+    assert proposed == star["published_type"], scored
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize(
+    "star",
+    [s for s in STARS if s.get("negative_kind") in ("blend", "constant")],
+    ids=lambda s: s["star"],
+)
+def test_blend_or_constant_scores_not_variable(star: dict, analyses: dict) -> None:
+    analysis, _ = analyses[star["star"]]
+    proposed, scored = classified(star, analysis)
+    assert proposed == types.CONSTANT or max(scored.values()) <= 0.5, scored
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize(
+    "star", [s for s in STARS if s.get("negative_kind") == "alias_trap"], ids=lambda s: s["star"]
+)
+def test_alias_trap_keeps_its_type_at_the_true_period(star: dict, analyses: dict) -> None:
+    """An alias trap is a real variable with a wrong published period: it agrees at its true
+    period (the gate above) and is classified there, as the type VSX gives it."""
+    analysis, _ = analyses[star["star"]]
+    proposed, scored = classified(star, analysis)
+    assert proposed == star["published_type"], scored
 
 
 @pytest.mark.gate

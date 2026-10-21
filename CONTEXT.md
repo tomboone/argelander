@@ -38,7 +38,8 @@ _Avoid_: calibration error, field offset
 
 **Analysis**:
 The derived quantities for one Target from one pipeline version: periodograms,
-candidate periods per survey, alias tests, blend check, colour-magnitude position.
+candidate periods per survey, alias tests, blend check, colour-magnitude position, the
+light curve's shape at the agreed period, and how far it varies beyond its errors.
 _Avoid_: result, run output
 
 **Pipeline Version**:
