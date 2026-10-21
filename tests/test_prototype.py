@@ -6,7 +6,8 @@ recorded in `fixtures/catalog/`; `argelander.prototype.judge` applies the criter
 is a coverage gap until NEU-1796, so Agreement rests on ZTF g, ZTF r, TESS and Gaia's period.
 
 BoxLeastSquares over ZTF's 7.5-year baseline takes most of a minute a star, so the stars run
-in parallel, once for the module.
+in parallel, once for the module. The tests that need them are marked `gate`, which CI runs
+as its own job, only when the science can have changed (NEU-1838); `task test` runs them.
 """
 
 import os
@@ -73,6 +74,7 @@ def test_catalog_has_a_record_for_every_star() -> None:
     assert set(catalog()) == {s["gaia_source_id"] for s in STARS}
 
 
+@pytest.mark.gate
 @pytest.mark.parametrize("star", [gate_case(s) for s in STARS])
 def test_star_passes_the_gate(star: dict, analyses: dict) -> None:
     analysis, _ = analyses[star["star"]]
@@ -80,6 +82,7 @@ def test_star_passes_the_gate(star: dict, analyses: dict) -> None:
     assert result.passed, result.reason
 
 
+@pytest.mark.gate
 def test_missing_asassn_is_a_coverage_gap(analyses: dict) -> None:
     """No star has ASAS-SN Light Curves yet; each is analysed on the sources it has."""
     for star in STARS:
@@ -88,6 +91,7 @@ def test_missing_asassn_is_a_coverage_gap(analyses: dict) -> None:
         assert all(t.survey != "asassn" for t in analysis.alias_tests)
 
 
+@pytest.mark.gate
 def test_a_positive_renders_every_plot(analyses: dict, tmp_path: Path) -> None:
     star = next(s for s in STARS if s["star"] == "V0364 Dra")
     analysis, cleaned = analyses[star["star"]]
