@@ -23,6 +23,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -213,11 +214,26 @@ class LightCurveFile(_Row, Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+JOB_ACTIVE = text("status IN ('pending', 'claimed')")
+"""The predicate of the partial unique index that keeps one active Job per (kind, Target)."""
+
+
 class Job(_Row, Base):
     """One unit of Stage work on one Target, claimed with FOR UPDATE SKIP LOCKED (ADR-0002)."""
 
     __tablename__ = "jobs"
-    __table_args__ = (Index("ix_jobs_kind_status_created_at", "kind", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_jobs_kind_status_created_at", "kind", "status", "created_at"),
+        # At most one pending or claimed Job per kind and Target, so enqueue is idempotent
+        # even when two processes enqueue the same Target at once.
+        Index(
+            "uq_jobs_kind_target_id_active",
+            "kind",
+            "target_id",
+            unique=True,
+            postgresql_where=JOB_ACTIVE,
+        ),
+    )
 
     kind: Mapped[JobKind] = mapped_column(_vocabulary(JobKind, "kind"))
     target_id: Mapped[int] = _target_fk()

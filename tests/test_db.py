@@ -1,25 +1,20 @@
 """The schema, its migration, and both session factories, against a real Postgres.
 
-The tests migrate a throwaway database beside the configured one (`<name>_test`), so the
-dev database is never touched. They need DATABASE_URL: the dev stack's app container has
-it, and CI runs a Postgres service for them. Outside CI they skip without it.
+The `database_url` and `engine` fixtures (conftest.py) migrate a throwaway database.
 """
 
 import asyncio
-import os
-from collections.abc import Iterator
 
 import pytest
 from alembic import command
-from sqlalchemy import Engine, create_engine, inspect, make_url, select, text
+from sqlalchemy import Engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
-from argelander.db.migrations import alembic_config, upgrade
+from argelander.db.migrations import alembic_config
 from argelander.db.models import Base, Slice
 from argelander.db.session import (
     async_session_factory,
     create_async_engine,
-    create_sync_engine,
     sync_session_factory,
 )
 
@@ -33,40 +28,6 @@ TABLES = {
     "reviews",
     "submissions",
 }
-
-
-def _configured_url() -> str:
-    try:
-        return os.environ["DATABASE_URL"]
-    except KeyError:
-        if os.environ.get("CI") == "true":
-            pytest.fail("DATABASE_URL is unset in CI; the job's Postgres service sets it")
-        pytest.skip("needs DATABASE_URL (run inside the dev stack)")
-
-
-@pytest.fixture(scope="module")
-def database_url() -> Iterator[str]:
-    """A freshly created, empty database on the configured server; dropped afterwards."""
-    configured = make_url(_configured_url())
-    name = f"{configured.database}_test"
-    admin = create_engine(configured, isolation_level="AUTOCOMMIT")
-    with admin.connect() as connection:
-        connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        connection.execute(text(f'CREATE DATABASE "{name}"'))
-    try:
-        yield configured.set(database=name).render_as_string(hide_password=False)
-    finally:
-        with admin.connect() as connection:
-            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        admin.dispose()
-
-
-@pytest.fixture(scope="module")
-def engine(database_url: str) -> Iterator[Engine]:
-    upgrade("head", database_url)
-    engine = create_sync_engine(database_url)
-    yield engine
-    engine.dispose()
 
 
 def test_upgrade_creates_every_table_and_constraint(engine: Engine) -> None:
