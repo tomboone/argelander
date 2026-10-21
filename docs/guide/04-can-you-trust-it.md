@@ -136,6 +136,13 @@ not be judged, not because it was judged clean. On the full Light Curves the pip
 see in production, the same fields hold several times as many points and will be
 measured.
 
+Since NEU-1802 the comparison is also put to use. Each measured field is moved onto the
+reference field's zero point at equal phase before the plots are drawn and the range is
+read. Until then, a field the median rule had shifted by a tenth of a magnitude too much
+stayed shifted. On the fixtures this changes no gate result, and no positive's ZTF range
+moves by more than 0.01 mag, because every field it moves by more than 0.03 mag holds only
+10 to 40 of its band's 500 points.
+
 ## The thresholds were tuned on these 27 stars
 
 Several numbers in the pipeline are not derived from first principles. They were set

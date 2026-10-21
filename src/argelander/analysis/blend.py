@@ -32,9 +32,15 @@ equal phase, and the shift less that residual is the oid's zero point. A band wh
 not trustworthy (no best period, or phase dispersion above `agreement.MAX_SCATTER`) is not
 measured and not flagged: it does not vote in Agreement, and the neighbour rule still covers
 real blends.
+
+The same residual is what `realign` takes off (NEU-1802): the pipeline moves each measured
+oid's points by it, so the band's oids sit at the reference's zero point at equal phase and
+the plots and the magnitude range read one curve. Unmeasured oids keep the fetcher's shift,
+and the Cache file keeps the fetcher's alignment.
 """
 
 from collections.abc import Iterable
+from dataclasses import replace
 
 import numpy as np
 
@@ -143,6 +149,7 @@ def zero_point_offsets(lc: LightCurve, alias_test: AliasTest) -> ZeroPointOffset
     bins = np.minimum((phase * best.bins).astype(np.intp), best.bins - 1)
 
     offsets: dict[str, float] = {}
+    realignment: dict[str, float] = {}
     unmeasured: list[str] = []
     for oid in oids:
         if str(oid) == reference:
@@ -154,16 +161,39 @@ def zero_point_offsets(lc: LightCurve, alias_test: AliasTest) -> ZeroPointOffset
         if residual.size < MIN_OID_POINTS:
             unmeasured.append(str(oid))
             continue
-        offsets[str(oid)] = float(shifts[str(oid)] - np.median(residual))
+        realignment[str(oid)] = -float(np.median(residual))
+        offsets[str(oid)] = shifts[str(oid)] + realignment[str(oid)]
     return ZeroPointOffsets(
         band=lc.band,
         period=best.period,
         bins=best.bins,
         reference_oid=reference,
         offsets=offsets,
+        realignment=realignment,
         unmeasured=tuple(unmeasured),
         suspect=any(abs(o) > BLEND_OFFSET_MAG for o in offsets.values()),
     )
+
+
+def realign(lc: LightCurve, zero_points: Iterable[ZeroPointOffsets]) -> LightCurve:
+    """`lc` with each measured oid's points moved to the reference's zero point at equal
+    phase; `lc` itself when it is not a ZTF band with a measured oid.
+
+    `meta["zero_point_offsets"]` then holds the measured offsets, which is what has been
+    added to those oids' raw points. With more than two oids each was measured against the
+    others as the fetcher merged them, and all are moved at once rather than in turn, which
+    leaves an error of the second order in the corrections.
+    """
+    if lc.survey != "ztf" or lc.oid is None:
+        return lc
+    measured = next((z for z in zero_points if z.band == lc.band), None)
+    if measured is None or not measured.realignment:
+        return lc
+    value = lc.value.copy()
+    for oid, shift in measured.realignment.items():
+        value[lc.oid == int(oid)] += shift
+    shifts = {**lc.meta["zero_point_offsets"], **measured.offsets}
+    return replace(lc, value=value, meta={**lc.meta, "zero_point_offsets": shifts})
 
 
 def _binned_median(bins: np.ndarray, value: np.ndarray, n_bins: int) -> np.ndarray:
