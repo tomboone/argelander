@@ -31,13 +31,7 @@ STARS = yaml.safe_load((FIXTURES / "manifest.yaml").read_text())
 
 # Stars the pipeline is known to fail, with why. Strict: one that starts passing fails the
 # run, so the entry is removed in the change that fixed it.
-KNOWN_FAILURES = {
-    "ASASSN-V J164537.58+592828.7": (
-        "ROT, 12.09 d: ZTF g and r agree, but ZTF's field zero points differ by over 0.05 mag "
-        "(blend_suspect) and the TESS field is crowded (tess_contaminated), so every source "
-        "counts half and two halves fall short of Agreement (NEU-1798)"
-    ),
-}
+KNOWN_FAILURES: dict[str, str] = {}
 
 
 def catalog() -> dict[int, GaiaRecord]:

@@ -51,8 +51,7 @@ What to notice: ZTF (circles) spans the whole seven years; TESS (dots) comes in 
 clumps, one per 27-day sector, in the years it happened to point this way; Gaia (squares)
 is a sprinkle of points in 2014–2017. The star scatters over about a magnitude at every
 epoch, which is the pulsation seen without a period. The legend already says
-*(contaminated)* against ZTF and TESS; section 3.6 explains what that means for this
-star. VSX asks for exactly this plot with a data-mined submission, and forbids one copied
+*(contaminated)* against TESS; section 3.6 explains what that means for this star. VSX asks for exactly this plot with a data-mined submission, and forbids one copied
 from a survey's website.
 
 ## 3.2 Cleaning
@@ -220,7 +219,7 @@ sources inside them:
 
 | Survey | Radius checked | Flagged when |
 | --- | ---: | --- |
-| ZTF and Gaia | 3″ | A Gaia source within 3″ is brighter than the Target + 2 mag. (ZTF also: its separate fields' zero points disagree by more than 0.05 mag.) |
+| ZTF and Gaia | 3″ | A Gaia source within 3″ is brighter than the Target + 2 mag. (ZTF also: its separate fields' zero points, compared at the same phase of the star's cycle, disagree by more than 0.05 mag.) |
 | ASAS-SN | 17″ | A Gaia source within 17″ is brighter than the Target + 2 mag. |
 | TESS | 120″ | Any source within 120″ is brighter than the Target + 1 mag, or all of them together carry more than half the Target's light. |
 
@@ -252,10 +251,14 @@ rest is the catalogue of positions saying whose light it is.
 Two honest caveats about the TESS and ZTF flags, which chapter 4 returns to. TESS's
 120″ aperture holds other stars for 25 of the 27 gate stars, so `tess_contaminated` is
 nearly always on at 13–16 mag; it means *weigh TESS with care*, not *TESS is wrong*. And
-the ZTF zero-point rule fires on 11 of the 20 known-good stars, including V0364 Dra, none
-of which has a neighbour within 3″; it is reacting to the star's own variability, and
-NEU-1798 corrects it. Until then, a ZTF `blend_suspect` without a neighbour in the table
-is a false alarm.
+the ZTF zero-point rule once fired on 11 of the 20 known-good stars, including V0364 Dra,
+none of which has a neighbour within 3″. It compared the median magnitude of each ZTF
+field, and a variable star's fields catch it at different points of its cycle, so their
+medians differed with nothing wrong. Since NEU-1798 the fields are compared at the same
+phase, once the period is settled, and the rule fires on none of the 20. A band with no
+trustworthy period is not judged at all, and neither is a field with fewer than ten points
+at phases the others cover; a ZTF `blend_suspect` without a neighbour in the table now
+means the fields really do disagree.
 
 ## 3.7 The colour-magnitude diagram
 

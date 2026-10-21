@@ -100,6 +100,7 @@ def trim(lc: LightCurve, max_points: int, seed: int) -> LightCurve:
         error=lc.error[keep],
         quality=lc.quality[keep],
         meta=meta,
+        oid=lc.oid[keep] if lc.oid is not None else None,
     )
 
 

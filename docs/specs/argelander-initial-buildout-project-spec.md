@@ -187,6 +187,13 @@ One `LightCurve` per (Target, survey, band). Cache path:
 the Parquet file metadata. The Cache is re-downloadable and never the system of record;
 `light_curve_files` indexes it.
 
+*Amended 2026-10-20 (NEU-1798):* `LightCurve` gains a last field, `oid: np.ndarray | None =
+None`, the int64 survey-native object id of each point. ZTF fills it; the other surveys
+leave it `None`. It is a fifth Parquet column when present, and a Cache file without the
+column reads back `oid=None`, so files written before it still load. `clean()` and the
+fixture trim subset it with the four arrays. NEU-1799 adds TESS's `sap` in the same shape:
+an optional per-point column, not a list in `meta`, which `clean()` does not subset.
+
 Fetchers convert archive output to `LightCurve` at the boundary. Raw TESS cutouts are
 deleted in the same job that extracted the light curve.
 
@@ -197,6 +204,13 @@ deleted in the same job that extracted the light curve.
   offset of each oid relative to the oid with the most points, apply the offset and record
   it in `meta`; flag a Target `blend_suspect` if any offset exceeds 0.05 mag. Keep
   `catflags == 0`. ZTF saturates near 12.5–13 mag; the 13–16 Slice avoids this.
+
+  *Amended 2026-10-20 (NEU-1798):* the fetcher no longer flags anything. The median shift
+  is a first alignment, good enough for the periodogram, and is still recorded in
+  `meta["zero_point_offsets"]`, but a variable star's oids sample its cycle unevenly, so
+  their medians differ with identical zero points; the old rule fired on 11 of the 20
+  prototype positives. Each point's oid is kept in `LightCurve.oid`, and the blend
+  judgement moves to §6 step 7, which compares the oids at equal phase.
 - **TESS** (lightkurve via MAST): prefer prebuilt QLP or TGLC light curves, else SPOC;
   fall back to a TESScut cutout with a simple aperture only when nothing prebuilt covers
   the star. Which source wins per magnitude is resolved in the prototype (handover open
@@ -354,6 +368,12 @@ Order of operations in `analysis/worker.py` for one Target:
    the margin is thin. The fifth failure, a ROT star at 12.09 d, stays a strict xfail: ZTF's
    oid zero-point flag (`blend_suspect`, NEU-1798) and `tess_contaminated` leave every source
    at half weight.
+
+   *Note 2026-10-20 (NEU-1798):* with the zero points judged at equal phase (step 7), neither
+   ZTF band is flagged, and the ROT star agrees at 12.122 d from ZTF g, ZTF r and TESS (2.5
+   sources). ZTF r was measured (largest offset 0.037 mag); ZTF g's only non-reference oid
+   holds 8 points in the trimmed fixture and is unmeasured, so g counts in full without
+   having been judged. It is out of `KNOWN_FAILURES`; the gate passes all 27 stars.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
@@ -372,6 +392,29 @@ Order of operations in `analysis/worker.py` for one Target:
    field's count, brightest G and combined G instead of a neighbour. Half weight means a
    contaminated source counts 0.5 towards Agreement's two sources, and towards the "most
    sources" comparison between periods.
+
+   *Amended 2026-10-20 (NEU-1798):* the ZTF oid offsets are measured here, at equal phase,
+   not taken from the fetcher's median shifts (§5.1). For each ZTF band with at least two
+   oids, fold at the band's alias-test best period into its `bins` phase bins (the alias
+   test's own cut). Skip the band, with no measurement and no flag, when `LightCurve.oid` is
+   absent, the alias test has no best period, or its phase dispersion is above Agreement's
+   0.75: such a band does not vote, and the neighbour rule still covers real blends. For
+   each non-reference oid, the template is the per-bin median of the band's other oids; the
+   residual is the median of the oid's points less the template, over bins the others
+   populate; its zero-point offset is the fetcher's shift less that residual, in the sign
+   of `meta["zero_point_offsets"]`. An oid with fewer than 10 such points is recorded as
+   unmeasured. A band is suspect when any offset exceeds 0.05 mag, and a suspect band with
+   no neighbour gives the ZTF-only `Contamination` with the remark `ZTF magnitudes possibly
+   contaminated: the zero points of its fields differ by <largest> mag at equal phase.
+   Range not corrected.`. `Blend.zero_points` records one `ZeroPointOffsets` per measured
+   band (band, period, bins, reference oid, offsets, unmeasured oids, suspect), flagged or
+   not; the curve itself is not re-aligned (NEU-1802). On the fixtures the rule flags none
+   of the 20 positives (it flagged 11 by medians) and both blends stay flagged by their
+   neighbours. The largest measured offset on a positive is 0.037 mag; V0364 Dra's g, 0.12
+   mag by medians, is 0.007 at equal phase; the largest median shift, 0.176 mag, is 0.022.
+   Five oids that carried flags (median shifts of 0.096–0.15 mag, the ROT star's g among
+   them) hold only 2–9 points of the 500-point trimmed fixtures and are now unmeasured
+   rather than measured small; on untrimmed Light Curves they hold several times as many.
 8. **CMD** (`cmd.py`): absolute G from parallax when `parallax / parallax_error > 5`,
    BP−RP; record the position and the nearest classical instability-strip or
    main-sequence region label.
