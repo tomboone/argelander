@@ -229,6 +229,19 @@ column reads back `oid=None`, so files written before it still load. `clean()` a
 fixture trim subset it with the four arrays. NEU-1799 adds TESS's `sap` in the same shape:
 an optional per-point column, not a list in `meta`, which `clean()` does not subset.
 
+*Amended 2026-10-21 (NEU-1799):* `LightCurve` gains a second optional last field, `sap:
+np.ndarray | None = None`, the float64 SAP flux of each point, normalised like `value` and
+kept for the PDCSAP comparison (§5.1). TESS fills it; the other surveys leave it `None`. It
+was a JSON list in `meta["sap"]`, which took 64 % of a large TESS file and fell out of step
+with the arrays after `clean()`, which subsets the arrays but copies `meta` whole. It is now a
+Parquet column after `oid`, written when present; a Cache file without the column reads back
+`sap=None`, so files written before it still load. A pre-amendment TESS file would keep its
+old list in `meta`, which nothing reads, and so lose its SAP until re-fetched; none exist
+outside the fixtures, because the fetch worker (NEU-1717) comes after this change. `clean()` and the fixture trim subset it with the
+other arrays. The TESS fixtures were migrated in place, the list moved into the column, not
+re-fetched: their four arrays are byte-for-byte unchanged and the prototype gate's results
+are identical.
+
 Fetchers convert archive output to `LightCurve` at the boundary. Raw TESS cutouts are
 deleted in the same job that extracted the light curve.
 
@@ -265,6 +278,9 @@ deleted in the same job that extracted the light curve.
   author's sectors are the only ones kept, so `meta["source"]` names one pipeline per
   Target. Prebuilt products are downloaded to the same temporary directory as cutouts and
   deleted with it.
+
+  *Amended 2026-10-21 (NEU-1799):* the SAP flux this paragraph puts in `meta["sap"]` is the
+  `LightCurve.sap` column instead (§5); `meta["sap_column"]` still names its source column.
 - **Gaia DR3 epoch photometry** (DataLink, `Gaia.load_data(..., retrieval_type=
   "EPOCH_PHOTOMETRY")`): G, BP, RP per transit; drop `rejected_by_photometry` and
   `rejected_by_variability`. Fetched per Slice in batches of IDs, not per star.
@@ -844,6 +860,57 @@ Per star and survey, in kB:
 | Gaia DR3 1435854639894380800 | 13.66 | 99 | 16,285 | – | 16,384 | QLP |
 | Gaia DR3 1434111643382583936 | 13.96 | 112 | 15,931 | – | 16,043 | QLP |
 | Gaia DR3 1435683567052954368 | 15.01 | 9 | 18,212 | – | 18,221 | TESScut |
+
+*Re-measured 2026-10-21 (NEU-1799)*, after SAP moved from `meta` to a Parquet column (§5),
+with `python scripts/build_fixtures.py --measure --survey tess`. ZTF and Gaia are unchanged
+by it, so their sizes above are carried over. Every star used the same TESS source as on
+2026-10-20.
+
+**Per-star size.** Median 7.8 MB, mean 6.7 MB, largest 8.9 MB: half the 2026-10-20 figures.
+Each TESS file shrank to 48–52 % of its old size (49 % overall), and TESS is still 98 % of a
+star. That bears out the 2026-10-20 estimate of about 8.5 MB for a 250,000-point TESS file:
+the largest is now 8.8 MB.
+
+| Scope | Stars | Handover | Measured 2026-10-20 | Measured, at 6.7 MB a star |
+| --- | ---: | ---: | ---: | ---: |
+| Prototype | 20–27 | ~20 MB | 370 MB for the 27 | 180 MB for the 27 |
+| Realistic first year | 5k–20k | 5–30 GB | 70–270 GB | 34–135 GB |
+| Whole Gaia VAR backlog | ~166k | 80–250 GB | ~2.3 TB | ~1.1 TB |
+
+The whole backlog now fits on the 2 TB SSD. Float32 storage and cadence binning, each of
+which loses information, remain open and are not needed for v1.
+
+Per star, in kB (total = new TESS + ZTF and Gaia from the table above):
+
+| Star | G | tess kB, 2026-10-20 | tess kB, 2026-10-21 | Total kB | TESS source |
+| --- | ---: | ---: | ---: | ---: | --- |
+| NSVS 2887379 | 13.91 | 15,008 | 7,377 | 7,502 | QLP |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 18,087 | 8,721 | 8,773 | TESScut |
+| LINEAR 20427289 | 15.34 | 12,676 | 6,293 | 6,407 | TESScut |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 9,187 | 4,718 | 4,827 | SPOC |
+| DW Dra | 13.04 | 17,183 | 8,333 | 8,452 | QLP |
+| T-Dra0-09947 | 15.08 | 9,817 | 5,064 | 5,194 | TESScut |
+| 1SWASP J191601.56+560055.3 | 13.60 | 12,607 | 6,310 | 6,381 | QLP |
+| CSS_J173907.6+550053 | 14.69 | 17,327 | 8,393 | 8,482 | TESScut |
+| V0364 Dra | 14.85 | 8,461 | 4,363 | 4,477 | TESScut |
+| V0502 Dra | 14.92 | 16,349 | 7,946 | 8,093 | TESScut |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 18,005 | 8,692 | 8,755 | TESScut |
+| V0379 Dra | 13.33 | 14,426 | 7,109 | 7,306 | QLP |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 17,079 | 8,214 | 8,425 | TESScut |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 16,968 | 8,192 | 8,315 | QLP |
+| V0553 Dra | 13.78 | 17,663 | 8,520 | 8,594 | TESScut |
+| KO Cep | 13.06 | 4,644 | 2,382 | 2,452 | QLP |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 14,548 | 7,167 | 7,221 | QLP |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 17,205 | 8,338 | 8,383 | QLP |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 17,744 | 8,575 | 8,673 | TESScut |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 18,224 | 8,774 | 8,889 | TESScut |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 5,737 | 2,908 | 2,996 | TESScut |
+| CSS_J181701.4+514940 | 14.41 | 9,757 | 5,038 | 5,203 | TESScut |
+| CSS_J160212.7+530724 | 15.70 | 1,893 | 970 | 1,051 | QLP |
+| CSS_J172350.6+504650 | 14.48 | 4,453 | 2,287 | 2,373 | QLP |
+| Gaia DR3 1435854639894380800 | 13.66 | 16,285 | 7,928 | 8,027 | QLP |
+| Gaia DR3 1434111643382583936 | 13.96 | 15,931 | 7,716 | 7,828 | QLP |
+| Gaia DR3 1435683567052954368 | 15.01 | 18,212 | 8,781 | 8,790 | TESScut |
 
 - Whether ASAS-SN g or V is more useful at 13–16 mag.
 - The Draco VAR Target count at 13–16 mag (one VizieR query before milestone 4).

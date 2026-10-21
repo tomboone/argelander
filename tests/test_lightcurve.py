@@ -97,6 +97,65 @@ def test_float_oid_raises() -> None:
         make_lc(oid=np.array([1.0, 2.0, 1.0, 1.0]))
 
 
+def test_sap_round_trips_as_a_float64_column(tmp_path: Path) -> None:
+    sap = np.array([1.02, 0.98, np.nan, 1.0], dtype=">f8")  # astropy hands back big-endian
+    lc = make_lc(survey="tess", band="T", value_kind="flux", sap=sap)
+    path = tmp_path / "lc.parquet"
+
+    lc.to_parquet(path)
+    loaded = LightCurve.from_parquet(path)
+
+    assert pq.read_schema(path).names == ["time", "value", "error", "quality", "sap"]
+    assert "sap" not in loaded.meta
+    assert loaded == lc
+    assert loaded.sap is not None
+    assert loaded.sap.dtype == np.float64
+    np.testing.assert_array_equal(loaded.sap, sap)
+
+
+def test_oid_and_sap_round_trip_together(tmp_path: Path) -> None:
+    lc = make_lc(oid=np.array([1, 2, 1, 1]), sap=np.array([1.0, 0.9, 1.1, 1.0]))
+    path = tmp_path / "lc.parquet"
+
+    lc.to_parquet(path)
+
+    assert pq.read_schema(path).names == ["time", "value", "error", "quality", "oid", "sap"]
+    assert LightCurve.from_parquet(path) == lc
+
+
+def test_a_file_without_a_sap_column_reads_back_sap_none(tmp_path: Path) -> None:
+    path = tmp_path / "lc.parquet"
+    make_lc().to_parquet(path)
+
+    assert LightCurve.from_parquet(path).sap is None
+
+
+def test_equality_compares_sap() -> None:
+    sap = np.array([1.0, np.nan, 1.1, 1.0])
+
+    assert make_lc(sap=sap) == make_lc(sap=sap.copy())
+    assert make_lc(sap=sap) != make_lc(sap=np.array([1.0, np.nan, 1.2, 1.0]))
+    assert make_lc(sap=sap) != make_lc()
+
+
+def test_sap_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError, match="sap has 3 entries for 4 points"):
+        make_lc(sap=np.array([1.0, 1.0, 1.0]))
+
+
+def test_integer_sap_raises() -> None:
+    with pytest.raises(ValueError, match="sap must be floating point"):
+        make_lc(sap=np.array([1, 1, 1, 1]))
+
+
+def test_sap_is_read_only() -> None:
+    lc = make_lc(sap=np.array([1.0, 0.9, 1.1, 1.0]))
+
+    assert lc.sap is not None
+    with pytest.raises(ValueError):
+        lc.sap[0] = 2.0
+
+
 def test_to_parquet_creates_missing_cache_directories(tmp_path: Path) -> None:
     path = cache_path(tmp_path, "ztf", 1234567890123456789, "g")
 

@@ -129,8 +129,9 @@ def test_fixture_is_a_trimmed_light_curve_of_its_path(path: Path) -> None:
     assert 0 < len(lc.time) <= build_fixtures.MAX_POINTS
     # Each ZTF point keeps its oid, which the zero-point comparison needs (NEU-1798).
     assert (lc.oid is not None) == (lc.survey == "ztf")
-    if "sap" in lc.meta:
-        assert len(lc.meta["sap"]) == len(lc.time)
+    # Each TESS point keeps its SAP flux as a column, not a list in `meta` (NEU-1799).
+    assert (lc.sap is not None) == (lc.survey == "tess")
+    assert "sap" not in lc.meta
 
 
 def test_trim_keeps_a_seeded_random_subset_in_time_order() -> None:
@@ -147,14 +148,17 @@ def test_trim_keeps_a_seeded_random_subset_in_time_order() -> None:
 
 
 def test_trim_keeps_value_error_sap_and_oid_aligned_with_time() -> None:
-    lc = make_lc(1000, sap=[float(i) for i in range(1000)])
     lc = dataclasses.replace(
-        lc, value=lc.time * 2.0, error=lc.time * 3.0, oid=np.arange(1000, dtype=np.int64)
+        make_lc(1000),
+        value=np.arange(1000) * 2.0,
+        error=np.arange(1000) * 3.0,
+        oid=np.arange(1000, dtype=np.int64),
+        sap=np.arange(1000) * 4.0,
     )
     trimmed = build_fixtures.trim(lc, 100, seed=1)
     np.testing.assert_array_equal(trimmed.value, trimmed.time * 2.0)
     np.testing.assert_array_equal(trimmed.error, trimmed.time * 3.0)
-    np.testing.assert_array_equal(trimmed.meta["sap"], trimmed.time)
+    np.testing.assert_array_equal(trimmed.sap, trimmed.time * 4.0)
     np.testing.assert_array_equal(trimmed.oid, trimmed.time)
 
 

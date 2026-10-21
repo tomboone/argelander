@@ -61,6 +61,7 @@ def clean(lc: LightCurve) -> LightCurve:
             },
         },
         oid=lc.oid[keep] if lc.oid is not None else None,
+        sap=lc.sap[keep] if lc.sap is not None else None,
     )
 
 

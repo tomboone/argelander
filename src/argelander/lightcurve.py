@@ -2,9 +2,9 @@
 
 Spec §5. One `LightCurve` per (Target, survey, band), stored as Parquet at
 `$CACHE_DIR/{survey}/{gaia_source_id}/{band}.parquet`. The four arrays are the columns, and
-`oid` a fifth when the survey has one; the scalar fields and `meta` go in the Parquet file
-metadata. The Cache is re-downloadable and never the system of record; `light_curve_files`
-indexes it.
+`oid` and `sap` more columns when the survey has them; the scalar fields and `meta` go in the
+Parquet file metadata. The Cache is re-downloadable and never the system of record;
+`light_curve_files` indexes it.
 """
 
 import json
@@ -21,6 +21,9 @@ VALUE_KINDS = ("mag", "flux")
 # The single Parquet file-metadata key that holds every non-array field.
 _METADATA_KEY = b"argelander"
 _ARRAYS = ("time", "value", "error", "quality")
+# Per-point columns only some surveys have, with the dtype each is stored in. A Cache file
+# written before one existed has no such column and reads back None for it.
+_OPTIONAL = {"oid": np.dtype(np.int64), "sap": np.dtype(np.float64)}
 
 
 # eq=False: the generated __eq__ would compare arrays elementwise and fail on truthiness.
@@ -38,6 +41,9 @@ class LightCurve:
     # int64, the survey-native object id each point came from; ZTF only, None elsewhere and
     # in Cache files written before it existed.
     oid: np.ndarray | None = None
+    # float64, TESS's raw aperture flux, normalised like `value`, kept for the PDCSAP
+    # comparison (spec §5.1); TESS only, None elsewhere and in Cache files written before it.
+    sap: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if self.value_kind not in VALUE_KINDS:
@@ -72,8 +78,10 @@ class LightCurve:
             frozen.setflags(write=False)
             object.__setattr__(self, name, frozen)
 
-        if self.oid is not None:
-            object.__setattr__(self, "oid", _frozen_oid(np.asarray(self.oid), time.size))
+        for name in _OPTIONAL:
+            raw = getattr(self, name)
+            if raw is not None:
+                object.__setattr__(self, name, _frozen_column(name, np.asarray(raw), time.size))
 
         # Normalised through JSON now (tuples become lists, keys strings) so that a Parquet
         # round trip compares equal, and a value JSON cannot hold fails here, not at write.
@@ -92,7 +100,9 @@ class LightCurve:
             and self.band == other.band
             and self.value_kind == other.value_kind
             and self.meta == other.meta
-            and _oids_equal(self.oid, other.oid)
+            and all(
+                _optional_equal(getattr(self, name), getattr(other, name)) for name in _OPTIONAL
+            )
             and all(
                 np.array_equal(getattr(self, name), getattr(other, name), equal_nan=True)
                 for name in _ARRAYS
@@ -115,8 +125,9 @@ class LightCurve:
             "meta": self.meta,
         }
         columns = {name: getattr(self, name) for name in _ARRAYS}
-        if self.oid is not None:
-            columns["oid"] = self.oid
+        columns.update(
+            (name, getattr(self, name)) for name in _OPTIONAL if getattr(self, name) is not None
+        )
         table = pa.table(columns).replace_schema_metadata(
             {_METADATA_KEY: json.dumps(fields).encode()}
         )
@@ -131,29 +142,36 @@ class LightCurve:
             raise ValueError(f"{path} is not an Argelander Light Curve: no metadata")
         fields = json.loads(metadata[_METADATA_KEY])
         arrays = {name: table.column(name).to_numpy() for name in _ARRAYS}
-        oid = table.column("oid").to_numpy() if "oid" in table.column_names else None
-        return cls(**fields, **arrays, oid=oid)
+        optional = {
+            name: table.column(name).to_numpy() if name in table.column_names else None
+            for name in _OPTIONAL
+        }
+        return cls(**fields, **arrays, **optional)
 
 
-def _frozen_oid(raw: np.ndarray, n: int) -> np.ndarray:
-    """`raw` checked against a Light Curve of `n` points, as a read-only native int64 copy."""
+def _frozen_column(name: str, raw: np.ndarray, n: int) -> np.ndarray:
+    """Optional column `name` checked against a Light Curve of `n` points, as a read-only
+    native-endian copy in its `_OPTIONAL` dtype."""
+    dtype = _OPTIONAL[name]
     if raw.ndim != 1:
-        raise ValueError("oid must be one-dimensional")
+        raise ValueError(f"{name} must be one-dimensional")
     if raw.size != n:
-        raise ValueError(f"oid has {raw.size} entries for {n} points")
-    if raw.dtype.kind not in "iu":
-        raise ValueError(f"oid must be integer, got {raw.dtype}")
-    frozen = raw.astype(np.int64)
-    if not np.array_equal(frozen, raw):
-        raise ValueError("oid does not fit in int64")
+        raise ValueError(f"{name} has {raw.size} entries for {n} points")
+    if dtype.kind == "i" and raw.dtype.kind not in "iu":
+        raise ValueError(f"{name} must be integer, got {raw.dtype}")
+    if dtype.kind == "f" and raw.dtype.kind != "f":
+        raise ValueError(f"{name} must be floating point, got {raw.dtype}")
+    frozen = raw.astype(dtype)
+    if not np.array_equal(frozen, raw, equal_nan=dtype.kind == "f"):
+        raise ValueError(f"{name} does not fit in {dtype}")
     frozen.setflags(write=False)
     return frozen
 
 
-def _oids_equal(a: np.ndarray | None, b: np.ndarray | None) -> bool:
+def _optional_equal(a: np.ndarray | None, b: np.ndarray | None) -> bool:
     if a is None or b is None:
         return a is b
-    return np.array_equal(a, b)
+    return np.array_equal(a, b, equal_nan=a.dtype.kind == "f")
 
 
 def cache_path(cache_dir: Path, survey: str, gaia_source_id: int, band: str) -> Path:
