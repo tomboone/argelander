@@ -913,6 +913,12 @@ from the grilling session:
   command exists. `compose.yaml` is now the prod stack alone: the dev `app` service lives in
   `compose.dev.yaml`, which resets the workers' build, mounts, environment and healthcheck
   to the repo's. `docs/runbook.md` §10 has the SSD setup.
+  *Amended 2026-10-21 (NEU-1724):* `tailscale` runs in userspace mode (no NET_ADMIN or
+  `/dev/net/tun`, like the mini's other sidecars) with a 128 MB limit and its node key on
+  the `tailscale-state` volume, and shares the `api` profile. tailscaled hands tailnet
+  connections to loopback in the shared namespace, so `web` binds `127.0.0.1:8000`; bound
+  to `0.0.0.0` it would also answer on the namespace's Compose-network address.
+  `deploy/tailscale.md` has the auth key, the ACLs, key rotation and re-registration.
 - Deploy: `git pull && docker compose pull/build && docker compose up -d` wrapped as
   `task deploy`, run over SSH by Tom. Not Coolify.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks

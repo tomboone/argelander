@@ -222,11 +222,12 @@ from the prod image, each with a memory limit (1 GB, 1 GB, 3 GB) and `restart:
 unless-stopped`, plus `api` (512 MB) behind the `api` profile until the review app's `web`
 command exists. Postgres keeps its data on a named volume on the internal disk; the
 Cache, the plots and the astropy download cache live on the USB SSD. The mini's `.env`
-needs two variables:
+needs two variables, plus a third for the first start of the review app:
 
 ```sh
 USB_ROOT=/mnt/usb             # the USB SSD's mount point
 POSTGRES_PASSWORD=<a real one>
+TS_AUTHKEY=tskey-auth-...     # once, then blanked (deploy/tailscale.md)
 ```
 
 Neither is required by Compose itself, so the dev stack keeps working without them; left
@@ -264,6 +265,12 @@ docker compose run --rm fetcher argelander db-upgrade
 docker compose up -d fetcher analyzer
 docker stats --no-stream      # each service's limit shows in MEM USAGE / LIMIT
 ```
+
+The review app (`api`) and its `tailscale` sidecar share the `api` profile and come up
+together with `docker compose --profile api up -d tailscale api`; the app is reachable only
+on the personal tailnet, at `http://argelander:8000`. `deploy/tailscale.md` has the auth
+key, the ACLs, the checks, and what to do when the sidecar restarts on its own or loses its
+state volume.
 
 The CLI runs in the fetcher's container (`docker compose exec fetcher argelander status`),
 since prod has no `app` service. Logs are Docker's json-file driver, rotated at 5 × 10 MB per

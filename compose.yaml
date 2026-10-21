@@ -1,9 +1,10 @@
 # The prod stack on the Mac mini (spec §10); compose.dev.yaml layers the dev stack on top
-# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD and USB_ROOT come from the
-# mini's .env. Their defaults fail loudly rather than being required with `:?`, which
-# Compose checks per file before merging, so it would refuse the dev stack too: an empty
-# password stops Postgres initialising, and the placeholder USB_ROOT names itself in the
-# "bind source path does not exist" error.
+# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD, USB_ROOT and TS_AUTHKEY come
+# from the mini's .env. The first two have defaults that fail loudly rather than being
+# required with `:?`, which Compose checks per file before merging, so it would refuse the dev
+# stack too: an empty password stops Postgres initialising, and the placeholder USB_ROOT names
+# itself in the "bind source path does not exist" error. TS_AUTHKEY is blank after the first
+# start by design.
 #
 # The host is a 2011 Mac mini with 16 GB shared with Navidrome and Uptime Kuma, so every
 # service has a memory limit. Postgres stays on the internal SSD; the Cache, the plots and
@@ -93,15 +94,50 @@ services:
       interval: 1m
       timeout: 5s
 
+  # The api's network namespace: its own node, `argelander`, on the personal tailnet; the host
+  # is on no tailnet (deploy/tailscale.md). Userspace networking, like the mini's other
+  # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
+  # connection to 127.0.0.1 in the namespace, where the api listens on 8000. Nothing is
+  # published, so the port is closed to the LAN and to the host; `web` binds 127.0.0.1, not
+  # 0.0.0.0, so it is closed on the namespace's Compose-network address too. Shares the api's
+  # profile, so it joins the tailnet only once there is something to serve.
+  tailscale:
+    image: tailscale/tailscale:stable
+    profiles: [api]
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      TS_HOSTNAME: argelander
+      # One-time auth key from the personal tailnet. Blank it once the state volume holds the
+      # node key.
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_AUTH_ONCE: "true"
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    logging: *logging
+
   # The review app reads Postgres and serves the plots, read-only. Behind the `api` profile
-  # until the `web` command exists (M6): drop the profile then. It is reached only on the
-  # tailnet, through the tailscale sidecar (NEU-1724), so it publishes no port. It mounts
-  # only the plots, so the astropy cache stays at the image's writable default.
+  # until the `web` command exists (M6): drop the profile from both services then. It is
+  # reached only on the tailnet, at http://argelander:8000, through the tailscale sidecar's
+  # network namespace. It mounts only the plots, so the astropy cache stays at the image's
+  # writable default.
   api:
     <<: *app
     profiles: [api]
     command: ["argelander", "web"]
     mem_limit: 512m
+    network_mode: service:tailscale
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # A restarted sidecar has a new namespace, so Compose restarts the api with it. A restart
+      # Compose does not make (a crash) strands the api; see deploy/tailscale.md.
+      tailscale:
+        condition: service_started
+        restart: true
     environment:
       DATABASE_URL: *database-url
       PLOTS_DIR: /usb/plots
@@ -123,3 +159,5 @@ services:
 
 volumes:
   postgres-data:
+  # The node key. Losing it means registering the node again (deploy/tailscale.md).
+  tailscale-state:
