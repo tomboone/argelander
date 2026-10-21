@@ -75,7 +75,8 @@ def select_slice(
 def fetch_worker() -> None:
     """Claim fetch Jobs, fetch every survey, index the Cache and queue analysis, until stopped.
 
-    Refuses to start when CACHE_DIR is not a mount point, unless ALLOW_UNMOUNTED_CACHE=1.
+    Refuses to start when CACHE_DIR has no Cache marker (the USB SSD is not mounted), unless
+    ALLOW_UNMOUNTED_CACHE=1.
     """
     # Imported here so `version` and --help never load the fetchers and SQLAlchemy.
     from argelander.config import get_settings
@@ -96,7 +97,8 @@ def analyze_worker() -> None:
     """Claim analyze Jobs, analyse each Target's Light Curves and write its Analysis, until
     stopped.
 
-    Refuses to start when CACHE_DIR is not a mount point, unless ALLOW_UNMOUNTED_CACHE=1.
+    Refuses to start when CACHE_DIR has no Cache marker (the USB SSD is not mounted), unless
+    ALLOW_UNMOUNTED_CACHE=1.
     """
     # Imported here so `version` and --help never load the analysis chain and SQLAlchemy.
     from argelander.analysis import worker

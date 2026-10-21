@@ -1,7 +1,7 @@
 version: "3"
 
 # Docker-only local dev: every tool runs in the `app` container, as the pre-commit hooks do.
-# `deploy` and `backup:check` arrive with the prod stack (NEU-1723).
+# `deploy` and `backup:check` arrive with the deploy and backup tickets (NEU-1725, NEU-1726).
 dotenv: [".env"]
 
 vars:

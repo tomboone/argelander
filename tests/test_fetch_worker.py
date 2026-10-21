@@ -32,6 +32,7 @@ from argelander.db.session import sync_session_factory
 from argelander.fetch import worker
 from argelander.fetch.base import FetchError, TargetRef, TessField
 from argelander.fetch.worker import (
+    CACHE_MARKER,
     FETCHER_VERSION,
     CacheNotMounted,
     Fetchers,
@@ -378,15 +379,19 @@ def test_run_outlives_a_failed_pass_and_sleeps_before_the_next(
     assert sleeps == [7]
 
 
-def test_check_cache_mount_refuses_a_directory_that_is_not_a_mount_point(tmp_path: Path) -> None:
+def test_check_cache_mount_refuses_a_directory_without_the_cache_marker(tmp_path: Path) -> None:
     with pytest.raises(CacheNotMounted, match="ALLOW_UNMOUNTED_CACHE"):
         check_cache_mount(tmp_path, allow_unmounted=False)
+    # A mount point is not enough: inside a container every bind-mount target is one.
+    with pytest.raises(CacheNotMounted):
+        check_cache_mount(Path("/"), allow_unmounted=False)
 
     check_cache_mount(tmp_path, allow_unmounted=True)
-    check_cache_mount(Path("/"), allow_unmounted=False)  # the root is always a mount point
+    (tmp_path / CACHE_MARKER).touch()
+    check_cache_mount(tmp_path, allow_unmounted=False)
 
 
-def test_fetch_worker_refuses_to_start_on_an_unmounted_cache_dir(
+def test_fetch_worker_refuses_to_start_without_the_cache_marker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@nowhere:5432/argelander")
@@ -399,4 +404,4 @@ def test_fetch_worker_refuses_to_start_on_an_unmounted_cache_dir(
         get_settings.cache_clear()
 
     assert result.exit_code == 1
-    assert "is not a mount point" in result.output
+    assert "has no .argelander-cache marker" in result.output

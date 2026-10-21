@@ -27,6 +27,11 @@ _Avoid_: photometry, data, time series
 The on-disk Parquet store of raw Light Curves, keyed by survey and source ID.
 Re-downloadable; never the system of record.
 
+**Cache marker**:
+The empty `.argelander-cache` file in the Cache's directory on the USB SSD. The fetch and
+analyze workers refuse to start without it, so an unmounted SSD cannot leave the Cache on
+the boot disk.
+
 **Zero-point offset**:
 The constant magnitude difference between two ZTF fields' measurements of the same
 Target, compared at equal phase of its cycle. A large one means a neighbour's light

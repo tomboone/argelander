@@ -566,7 +566,7 @@ def test_analysis_columns_hold_only_json_values() -> None:
     assert columns["agreed_period"] is None
 
 
-def test_analyze_worker_refuses_to_start_on_an_unmounted_cache_dir(
+def test_analyze_worker_refuses_to_start_without_the_cache_marker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@nowhere:5432/argelander")
@@ -579,4 +579,4 @@ def test_analyze_worker_refuses_to_start_on_an_unmounted_cache_dir(
         get_settings.cache_clear()
 
     assert result.exit_code == 1
-    assert "is not a mount point" in result.output
+    assert "has no .argelander-cache marker" in result.output

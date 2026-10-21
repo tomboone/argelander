@@ -5,7 +5,8 @@ what to look at when something goes wrong. Every command runs in the `app` conta
 (`docker compose exec app …`), as the Taskfile does. The example output is from the first
 end-to-end run, Draco 13–16, on 2026-10-21 (NEU-1722).
 
-The prod stack on the Mac mini (NEU-1723) runs the same commands against its own services.
+The prod stack on the Mac mini runs the same commands against its own services; section 10
+says how it differs.
 
 ## 1. Bring the stack up
 
@@ -213,6 +214,60 @@ analysing or classifying again, and rewrites `analyses.plots`.
 task workers:stop   # the workers only
 task down           # everything; the postgres volume is kept
 ```
+
+## 10. The prod stack
+
+`compose.yaml` alone is the prod stack (spec §10): `postgres`, `fetcher` and `analyzer`
+from the prod image, each with a memory limit (1 GB, 1 GB, 3 GB) and `restart:
+unless-stopped`, plus `api` (512 MB) behind the `api` profile until the review app's `web`
+command exists. Postgres keeps its data on a named volume on the internal disk; the
+Cache, the plots and the astropy download cache live on the USB SSD. The mini's `.env`
+needs two variables:
+
+```sh
+USB_ROOT=/mnt/usb             # the USB SSD's mount point
+POSTGRES_PASSWORD=<a real one>
+```
+
+Neither is required by Compose itself, so the dev stack keeps working without them; left
+unset in prod, Postgres refuses to initialise and the workers' bind fails with
+`bind source path does not exist: /USB_ROOT-is-not-set`.
+
+Once, on a freshly formatted SSD, create the directories, owned by the image's user (uid
+1000), and the Cache marker:
+
+```sh
+sudo mkdir -p "$USB_ROOT"/{cache,plots,astropy}
+sudo touch "$USB_ROOT"/cache/.argelander-cache
+sudo chown -R 1000:1000 "$USB_ROOT"/{cache,plots,astropy}
+```
+
+The marker is the mount guard. The workers bind the SSD's mount point itself, so with the
+SSD unplugged they still start, on the empty directory left on the boot disk, find no
+marker, and exit with this line in their logs, restarting until the SSD is back:
+
+```
+CACHE_DIR /usb/cache has no .argelander-cache marker, so the USB SSD is not mounted; mount it, or set ALLOW_UNMOUNTED_CACHE=1 in dev
+```
+
+A mount-point test cannot do this from inside a container, where every bind-mount target is
+a mount point. The workers' healthcheck reads the same marker, so `docker compose ps` shows
+them unhealthy if the SSD drops out under them. Docker does not restart an unhealthy
+container: restart them by hand once the SSD is back.
+
+Bring it up, migrate, then start the workers:
+
+```sh
+docker compose build
+docker compose up -d postgres
+docker compose run --rm fetcher argelander db-upgrade
+docker compose up -d fetcher analyzer
+docker stats --no-stream      # each service's limit shows in MEM USAGE / LIMIT
+```
+
+The CLI runs in the fetcher's container (`docker compose exec fetcher argelander status`),
+since prod has no `app` service. Logs are Docker's json-file driver, rotated at 5 × 10 MB per
+service.
 
 ## The first run, 2026-10-21
 
