@@ -1,7 +1,8 @@
 """The per-survey blend checks (spec §6 step 7), on constructed neighbours and recorded Gaia data.
 
 A Target is G 14.0 throughout the constructed cases, so "G + 1" is a G 15.0 neighbour. The
-ZTF zero-point cases merge two oids of a constructed variable the way the fetcher does.
+ZTF zero-point cases merge two oids of a constructed variable the way the fetcher does, and
+the re-alignment cases (NEU-1802) check the merged curve against the sine it was drawn from.
 """
 
 from dataclasses import replace
@@ -10,8 +11,11 @@ import numpy as np
 import pytest
 
 from argelander.analysis.agreement import MAX_SCATTER
-from argelander.analysis.blend import BLEND_OFFSET_MAG, blend, zero_point_offsets
+from argelander.analysis.aliases import alias_test
+from argelander.analysis.blend import BLEND_OFFSET_MAG, blend, realign, zero_point_offsets
+from argelander.analysis.clean import clean
 from argelander.analysis.model import AliasTest, Hypothesis
+from argelander.analysis.pipeline import analyze
 from argelander.catalog.gaia import GaiaRecord, Neighbour
 from argelander.fetch.base import TessField
 from argelander.lightcurve import LightCurve
@@ -22,6 +26,7 @@ RRAB = 1418010841782026880
 ECL_NO_2MASS = 1435149135683337216
 CONSTANT_BRIGHT_FIELD = 1422733312942999424
 PERIOD = 0.6  # days, of the constructed ZTF variable
+EPOCH = 2459000.5  # BJD, its phase zero
 AMPLITUDE = 0.5  # mag, semi-amplitude
 REFERENCE, OTHER = 797112400008865, 1830101400004824
 
@@ -72,7 +77,7 @@ def ztf_curve(*, zero_point: float = 0.0, band: str = "g") -> LightCurve:
     def sampled(n: int, phase_high: float) -> tuple[np.ndarray, np.ndarray]:
         cycles = rng.integers(0, 2000, n)
         phase = rng.uniform(0.0, phase_high, n)
-        time = 2459000.5 + (cycles + phase) * PERIOD
+        time = EPOCH + (cycles + phase) * PERIOD
         mag = 14.0 + AMPLITUDE * np.sin(2 * np.pi * phase) + rng.normal(0, 0.01, n)
         return time, mag
 
@@ -104,6 +109,14 @@ def folded(lc: LightCurve, *, scatter: float = 0.1) -> AliasTest:
         period=PERIOD, candidate=PERIOD, relation="P", bins=20, scatter=scatter, score=0.0
     )
     return AliasTest(survey=lc.survey, band=lc.band, ranking=(best,))
+
+
+def off_the_sine(lc: LightCurve, oid: int) -> float:
+    """The median of `oid`'s points less the sine they were drawn from, at their own phases."""
+    assert lc.oid is not None
+    own = lc.oid == oid
+    phase = ((lc.time[own] - EPOCH) / PERIOD) % 1.0
+    return float(np.median(lc.value[own] - 14.0 - AMPLITUDE * np.sin(2 * np.pi * phase)))
 
 
 def test_a_neighbour_at_2_arcsec_and_g_plus_1_flags_blend_suspect() -> None:
@@ -237,6 +250,7 @@ def test_a_band_without_two_oids_or_a_trustworthy_fold_is_not_measured(case: str
     assert zero_point_offsets(lc, test) is None
     assert found.zero_points == ()
     assert found.contaminations == ()
+    assert realign(lc, found.zero_points) is lc
 
 
 def test_an_oid_with_too_few_points_at_shared_phases_is_unmeasured() -> None:
@@ -271,6 +285,69 @@ def test_a_target_without_g_is_judged_by_ztf_zero_points_alone() -> None:
 
     assert blend(no_g).contaminations == ()
     assert blend(no_g, [lc], [folded(lc)]).surveys == {"ztf"}
+
+
+@pytest.mark.parametrize("zero_point", [0.0, 0.10])
+def test_realign_puts_each_measured_oid_at_the_references_zero_point(zero_point: float) -> None:
+    lc = ztf_curve(zero_point=zero_point)
+    (measured,) = blend(record(), [lc], [folded(lc)]).zero_points
+    shift = lc.meta["zero_point_offsets"][str(OTHER)]
+    # The fetcher's median shift left the other oid a tenth of a magnitude off the sine.
+    assert abs(off_the_sine(lc, OTHER)) > 0.05
+
+    realigned = realign(lc, [measured])
+
+    assert off_the_sine(realigned, REFERENCE) == pytest.approx(0.0, abs=0.005)
+    assert off_the_sine(realigned, OTHER) == pytest.approx(0.0, abs=0.005)
+    assert measured.realignment == {str(OTHER): pytest.approx(measured.offsets[str(OTHER)] - shift)}
+    assert realigned.oid is not None and lc.oid is not None
+    reference = realigned.oid == REFERENCE
+    assert np.array_equal(realigned.value[reference], lc.value[lc.oid == REFERENCE])
+    # The meta still says what was added to each oid's raw points, now the measured offset.
+    assert realigned.meta["zero_point_offsets"] == {
+        str(OTHER): pytest.approx(measured.offsets[str(OTHER)])
+    }
+    # Measured again, the curve needs no further re-alignment.
+    again = zero_point_offsets(realigned, folded(realigned))
+    assert again is not None
+    assert again.realignment[str(OTHER)] == pytest.approx(0.0, abs=0.005)
+
+
+def test_realign_leaves_unmeasured_oids_and_other_bands_alone() -> None:
+    lc = ztf_curve(zero_point=0.10)
+    (measured,) = blend(record(), [lc], [folded(lc)]).zero_points
+    unmeasured = replace(measured, offsets={}, realignment={}, unmeasured=(str(OTHER),))
+
+    other_band = replace(lc, band="r")
+
+    assert realign(lc, [unmeasured]) is lc
+    assert realign(other_band, [measured]) is other_band
+    assert realign(lc, []) is lc
+
+
+def test_the_analyzer_draws_both_oids_on_one_curve() -> None:
+    lc = ztf_curve()
+    assert abs(off_the_sine(lc, OTHER)) > 0.05
+
+    analysis, (cleaned,) = analyze([lc], record(), target_id=1)
+
+    assert analysis.blend is not None
+    (measured,) = analysis.blend.zero_points
+    assert measured.period == pytest.approx(PERIOD, rel=1e-3)
+    assert off_the_sine(cleaned, REFERENCE) == pytest.approx(0.0, abs=0.005)
+    assert off_the_sine(cleaned, OTHER) == pytest.approx(0.0, abs=0.005)
+    # The best fold is scored again on the re-aligned curve, which folds more tightly.
+    (test,) = analysis.alias_tests
+    best = test.best
+    assert best is not None
+    candidate, relation = best.candidate, best.relation
+
+    def scored(curve: LightCurve) -> Hypothesis:
+        ranking = alias_test(curve, [candidate]).ranking
+        return next(h for h in ranking if h.relation == relation)
+
+    assert best == scored(cleaned)
+    assert best.scatter < scored(clean(lc)).scatter
 
 
 def test_recorded_gaia_sources(recorded_gaia: dict[int, GaiaRecord]) -> None:

@@ -62,7 +62,10 @@ class AliasTest:
 
     survey: str
     band: str
-    ranking: tuple[Hypothesis, ...]  # lowest score first; empty when insufficient
+    # Lowest score first; empty when insufficient. After a ZTF band is re-aligned
+    # (`aliases.refold`) the best stays first, scored on the re-aligned curve, and the rest
+    # keep their scores from the curve before it.
+    ranking: tuple[Hypothesis, ...]
     # Days from the cleaned Light Curve's first point to its last, which sets how finely it
     # resolves a period; 0 when unknown, and then only the fixed tolerance applies.
     baseline: float = 0.0
@@ -112,6 +115,10 @@ class ZeroPointOffsets:
     # oids that is its zero point relative to the reference; with more, the others' template
     # carries their own median shifts, so it is relative to them as merged.
     offsets: dict[str, float]
+    # Measured oid → the magnitudes the analyzer adds to its points to re-align the band
+    # (NEU-1802): its offset less the fetcher's shift, which is how wrong that shift was at
+    # equal phase. Unmeasured oids keep the fetcher's shift and are not listed.
+    realignment: dict[str, float]
     unmeasured: tuple[str, ...]  # oids with too few points in bins the others populate
     suspect: bool  # any |offset| above `blend.BLEND_OFFSET_MAG`
 

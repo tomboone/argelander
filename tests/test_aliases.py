@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from argelander.analysis.aliases import TESS_ORBIT, alias_test, candidates
+from argelander.analysis.aliases import TESS_ORBIT, alias_test, candidates, refold
 from argelander.analysis.clean import MIN_POINTS
 from argelander.analysis.model import Method, Peak, PeriodogramResult
 from argelander.analysis.periodogram import periodograms
@@ -158,3 +158,21 @@ def test_a_sinusoid_is_not_doubled() -> None:
         result = alias_test(light_curve(time, mag, 0.02), [0.6])
 
         assert result.best is not None and result.best.relation == "P"
+
+
+def test_refold_scores_the_best_hypothesis_again_on_moved_values() -> None:
+    rng = np.random.default_rng(1802)
+    time = nightly_times(rng, 300)
+    mag = 15.0 + 0.3 * np.sin(2 * np.pi * time / 0.6) + rng.normal(0, 0.02, time.size)
+    noisy = mag + np.where(np.arange(time.size) % 2 == 0, 0.1, 0.0)
+    test = alias_test(light_curve(time, noisy, 0.02), [0.6])
+    clean_curve = light_curve(time, mag, 0.02)
+
+    refolded = refold(clean_curve, test)
+
+    assert test.best is not None and refolded.best is not None
+    rescored = alias_test(clean_curve, [test.best.candidate]).ranking
+    assert refolded.best == next(h for h in rescored if h.relation == test.best.relation)
+    assert refolded.best.scatter < test.best.scatter
+    assert refolded.ranking[1:] == test.ranking[1:]
+    assert refold(clean_curve, alias_test(light_curve(time[:5], mag[:5], 0.02), [0.6])).best is None

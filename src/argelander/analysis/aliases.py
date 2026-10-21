@@ -29,6 +29,7 @@ themselves too uncertain to weight by.
 """
 
 from collections.abc import Iterable
+from dataclasses import replace
 
 import numpy as np
 
@@ -72,6 +73,17 @@ def alias_test(lc: LightCurve, periods: Iterable[float]) -> AliasTest:
         ranking=tuple(sorted(hypotheses, key=lambda h: h.score)),
         baseline=float(lc.time.max() - lc.time.min()),
     )
+
+
+def refold(lc: LightCurve, test: AliasTest) -> AliasTest:
+    """`test` with its best hypothesis folded again on `lc`, the band's Light Curve after its
+    values moved (`blend.realign`), so the recorded scatter is the curve's. The rest of the
+    ranking stands as it was scored."""
+    best = test.best
+    if best is None:
+        return test
+    again = _fold(lc, best.candidate, best.relation, best.period, best.bins)
+    return replace(test, ranking=(again, *test.ranking[1:]))
 
 
 def aliases_of(period: float, survey: str) -> list[tuple[str, float]]:

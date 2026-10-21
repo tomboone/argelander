@@ -532,6 +532,29 @@ Order of operations in `analysis/worker.py` for one Target:
    Five oids that carried flags (median shifts of 0.096–0.15 mag, the ROT star's g among
    them) hold only 2–9 points of the 500-point trimmed fixtures and are now unmeasured
    rather than measured small; on untrimmed Light Curves they hold several times as many.
+
+   *Amended 2026-10-21 (NEU-1802):* the curve is now re-aligned at what was measured. Right
+   after the blend step, each measured oid's points move by the negated median residual, its
+   offset less the fetcher's shift (`blend.realign`). The band's oids then sit at the
+   reference's zero point at equal phase. With three or more oids this holds only to second
+   order, since each was measured against the others as the fetcher merged them and all
+   move at once. Unmeasured oids, and bands with no `ZeroPointOffsets`, keep the fetcher's
+   median alignment. A suspect band is re-aligned too, and its range stays uncorrected for
+   the neighbour's light, as before. The re-aligned cleaned Light Curve is what Agreement,
+   `shape`, `variability`, the plots and the range read. The Cache file is untouched, so the
+   fetcher's first pass can still be reproduced. Its `meta["zero_point_offsets"]` in memory
+   becomes the measured offsets, which is what has now been added to each oid's raw points.
+   Each re-aligned band's best hypothesis is folded again (`aliases.refold`), so its
+   recorded scatter is that of the curve the plots draw. It stays first in the ranking. The
+   periodograms and the rest of the ranking stay as first scored: a second search per band
+   would chase a shift the alias test has already resolved, and would make the period
+   depend on itself. `ZeroPointOffsets.realignment` records the magnitudes added to each
+   measured oid, beside `offsets`. On the fixtures, no gate result, agreed period, flag or
+   best type changed. The re-alignments reach 0.155 mag (ASASSN-V J163919.05+740125.0's r),
+   but every oid moved by more than 0.03 mag holds 10–40 of its band's ~500 trimmed points.
+   The binned range is dominated by the reference oid, so no positive's ZTF maximum or
+   minimum moved by more than 0.010 mag (V0379 Dra's g minimum). Untrimmed Light Curves give
+   the non-reference oids more weight, so the change will be larger there.
 8. **CMD** (`cmd.py`): absolute G from parallax when `parallax / parallax_error > 5`,
    BP−RP; record the position and the nearest classical instability-strip or
    main-sequence region label.
