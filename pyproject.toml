@@ -71,4 +71,5 @@ testpaths = ["tests"]
 addopts = ["--strict-markers"]
 markers = [
     "live: hits external archives (ZTF, MAST, Gaia, ASAS-SN); skipped in CI with -m 'not live'",
+    "gate: runs every fixture star through the pipeline (the prototype gate); its own CI job",
 ]

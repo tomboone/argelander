@@ -654,6 +654,15 @@ from the grilling session:
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
+
+  *Amended 2026-10-20 (NEU-1838):* the prototype gate's tests are marked `gate` and run in
+  a second job, `gate`, beside `ci`, which runs `pytest -m "not live and not gate"`. The gate
+  takes over ten minutes on a hosted runner (BoxLeastSquares over ZTF's baseline, for 27
+  stars on four cores); CI took about two before it. On a PR the `gate` job runs the tests
+  only when the PR changes `src/`, `tests/fixtures/`, `tests/test_prototype.py`,
+  `tests/conftest.py`, `pyproject.toml` or `uv.lock`, and otherwise succeeds without running
+  them; on a push to `main` it always runs them, each push in its own concurrency group. The job always reports, so the check exists on every PR.
+  `task test` and the pre-push hook still run everything, gate included.
 - Pre-commit hooks all run inside the `app` container, never on the host, following the
   pattern of the other container-based repos (music-discovery-engine is the template): the
   Homebrew-installed pre-commit framework is the orchestrator only, and every hook is
