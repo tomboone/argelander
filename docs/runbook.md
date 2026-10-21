@@ -225,7 +225,7 @@ Cache, the plots and the astropy download cache live on the USB SSD. The mini's 
 needs two variables, plus a third for the first start of the review app:
 
 ```sh
-USB_ROOT=/mnt/usb             # the USB SSD's mount point
+USB_ROOT=/mnt/argelander      # the USB SSD's mount point (deploy/README.md)
 POSTGRES_PASSWORD=<a real one>
 TS_AUTHKEY=tskey-auth-...     # once, then blanked (deploy/tailscale.md)
 ```
@@ -235,7 +235,10 @@ unset in prod, Postgres refuses to initialise and the workers' bind fails with
 `bind source path does not exist: /USB_ROOT-is-not-set`.
 
 Once, on a freshly formatted SSD, create the directories, owned by the image's user (uid
-1000), and the Cache marker:
+1000), and the Cache marker. Check first that `findmnt "$USB_ROOT"` shows the SSD: run
+against the empty mount point on the boot disk, these put the marker there and the guard
+then passes with the SSD missing. On the mini, `USB_ROOT` is a bind mount of
+`/mnt/music/argelander`, and `deploy/README.md` step 4 creates them there instead:
 
 ```sh
 sudo mkdir -p "$USB_ROOT"/{cache,plots,astropy}
@@ -256,7 +259,10 @@ a mount point. The workers' healthcheck reads the same marker, so `docker compos
 them unhealthy if the SSD drops out under them. Docker does not restart an unhealthy
 container: restart them by hand once the SSD is back.
 
-Bring it up, migrate, then start the workers:
+On the mini, `task deploy` does all of what follows, and `deploy/README.md` has the
+mini's own setup: the bind mount the T7 gets for this, the fstab lines and the systemd
+drop-in that makes Docker wait for them. By hand, bring it up, migrate, then start the
+workers:
 
 ```sh
 docker compose build

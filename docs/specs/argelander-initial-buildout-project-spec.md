@@ -919,8 +919,20 @@ from the grilling session:
   connections to loopback in the shared namespace, so `web` binds `127.0.0.1:8000`; bound
   to `0.0.0.0` it would also answer on the namespace's Compose-network address.
   `deploy/tailscale.md` has the auth key, the ACLs, key rotation and re-registration.
+  *Amended 2026-10-21 (NEU-1725):* the T7 is already mounted at `/mnt/music` for
+  Navidrome, so Argelander's directory on it is bind-mounted at `/mnt/argelander`
+  (`USB_ROOT`) by a second fstab line with `x-systemd.requires-mounts-for=/mnt/music`,
+  keeping a mount point whose absence leaves an empty directory. The drop-in is
+  `WantsMountsFor=`, not `RequiresMountsFor=`: both make Docker wait, but under `Requires`
+  a missing SSD stops `docker.service` starting at all, so the workers could never log the
+  guard's error. `deploy/README.md` has the host steps.
 - Deploy: `git pull && docker compose pull/build && docker compose up -d` wrapped as
   `task deploy`, run over SSH by Tom. Not Coolify.
+  *Amended 2026-10-21 (NEU-1725):* `task deploy` also runs `db-upgrade` before `up`, and
+  refuses to run without `USB_ROOT` and `POSTGRES_PASSWORD` or off `main`; `task deploy:remote` wraps it in
+  `ssh kumadrome`. A service in an inactive profile is not an orphan to `--remove-orphans`,
+  so the deploy leaves `tailscale` and `api` alone until `COMPOSE_PROFILES=api` is set or
+  the profile is dropped.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks
   `/healthz` over the tailnet; the backup job logs success/failure. No error tracker.
 
