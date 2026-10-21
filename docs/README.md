@@ -2,6 +2,7 @@
 
 | Path | What it is | When to read it |
 | --- | --- | --- |
+| `guide/README.md` | The guide for a reader with no astronomy background: why variable stars matter, how VSX came by wrong periods, how to read each plot the pipeline produces, and how far the prototype gate's results can be trusted. Figures come from `notebooks/02_guide_one_star.ipynb`. | Before reviewing a Proposal or submitting a revision. |
 | `handover.md` | The settled design from the planning conversation (2026-10-19), with a "Decisions since handover" section and a "Submission constraints" section updated after VSX registration. | Before changing scope or architecture. |
 | `specs/argelander-initial-buildout-project-spec.md` | Project-wide spec: package layout, Postgres schema, LightCurve contract, per-survey fetch rules, analysis order, classifier, plots, review app routes, submission tracker, infrastructure, testing, conventions. Every ticket is implemented from it. | Before implementing any ticket. |
 | `plans/` | Per-ticket plans written by `/planit` when the project spec does not cover a ticket well enough. Named `<TICKET>-<slug>.md`. | When a ticket has one. |

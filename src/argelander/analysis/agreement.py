@@ -102,7 +102,7 @@ def agreement(
     """
 
     def weight(names: set[str]) -> float:
-        return sum(CONTAMINATED_WEIGHT if SURVEYS[n] in contaminated else 1.0 for n in names)
+        return sum(source_weight(n, contaminated) for n in names)
 
     cast = votes(tests, gaia_period)
     found: list[Agreement] = []
@@ -146,6 +146,12 @@ def agreement(
     if any(abs(a.agreed_period / reference - 1.0) > best[0].tolerance for a in best[1:]):
         return None
     return best[0]
+
+
+def source_weight(source: str, contaminated: Collection[str] = ()) -> float:
+    """What one source's vote counts towards `MIN_WEIGHT`: half when its survey is among
+    the `contaminated` ones (`Blend.surveys`), else one."""
+    return CONTAMINATED_WEIGHT if SURVEYS[source] in contaminated else 1.0
 
 
 def tolerance(period: float, baseline: float) -> float:
