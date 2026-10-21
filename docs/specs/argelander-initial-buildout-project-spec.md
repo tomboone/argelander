@@ -827,3 +827,14 @@ Per star and survey, in kB:
 
 - Whether ASAS-SN g or V is more useful at 13–16 mag.
 - The Draco VAR Target count at 13–16 mag (one VizieR query before milestone 4).
+
+*Resolved 2026-10-21 (NEU-1715)*, from `catalog/vsx.py`'s live test against `B/vsx/vsx`
+version 2026-10-18:
+
+**Draco count.** 430 VAR entries with Gaia DR3 IDs whose magnitude at maximum is 13–16, all
+typed `VAR` (the four `VAR:` entries in the bounding box are outside Draco or carry no Gaia
+ID), all with a period and a G-band range. The VizieR copy has no cross-identification
+column: the Gaia DR3 ID is the entry's Name, `Gaia DR3 <source_id>`, for entries VSX imported
+from Gaia. Another 88 VAR entries in Draco at 13–16 are named for other surveys (ZTF 56,
+ASAS-SN 17, and others) and are not Targets in v1, since VizieR does not carry the Other
+names that might hold their Gaia IDs.
