@@ -2,6 +2,7 @@
 `status`, `enqueue` and `recompute-status` commands, against a real Postgres. The `engine`
 fixture (conftest.py) migrates a throwaway database."""
 
+import re
 from collections.abc import Iterator
 from decimal import Decimal
 from itertools import count
@@ -376,5 +377,6 @@ def test_bad_arguments_are_refused(
 ) -> None:
     refused = cli.invoke(app, args)
     assert refused.exit_code == 2
-    # Rich wraps and colours the error panel, so match a phrase, not the whole line.
-    assert message in refused.output
+    # On GitHub Actions Rich colours the option names inside the message, so the escape codes
+    # are stripped before matching; every message here fits on one line of the panel.
+    assert message in re.sub(r"\x1b\[[0-9;]*m", "", refused.output)
