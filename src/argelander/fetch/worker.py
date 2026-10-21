@@ -21,7 +21,6 @@ fails leaves them ahead of their rows until the Job's next attempt rewrites both
 
 import asyncio
 import logging
-import os
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -92,22 +91,28 @@ class Fetchers:
         )
 
 
+# Created once in CACHE_DIR on the USB SSD (docs/runbook.md); only the SSD carries it.
+CACHE_MARKER = ".argelander-cache"
+
+
 class CacheNotMounted(Exception):
-    """CACHE_DIR is not a mount point and the dev override is off."""
+    """CACHE_DIR has no Cache marker, so the USB SSD is not there, and the dev override is off."""
 
 
 def check_cache_mount(cache_dir: Path, *, allow_unmounted: bool) -> None:
-    """Refuse a CACHE_DIR that is not a mount point (spec §10).
+    """Refuse a CACHE_DIR without the Cache marker file (spec §10).
 
     In prod the Cache is the USB SSD, mounted with `nofail`; if the mount is missing, the
-    directory is an empty folder on the boot disk, and the fetcher would fill it. The dev
-    stack sets ALLOW_UNMOUNTED_CACHE=1, where the Cache is an ordinary directory.
+    directory is an empty folder on the boot disk, and the fetcher would fill it. A mount-point
+    test cannot see that from inside a container, where every bind-mount target is a mount
+    point, so the guard looks for a marker that only the SSD carries. The dev stack sets
+    ALLOW_UNMOUNTED_CACHE=1, where the Cache is an ordinary directory.
     """
-    if allow_unmounted or os.path.ismount(cache_dir):
+    if allow_unmounted or (cache_dir / CACHE_MARKER).is_file():
         return
     raise CacheNotMounted(
-        f"CACHE_DIR {cache_dir} is not a mount point; mount the Cache volume, or set "
-        "ALLOW_UNMOUNTED_CACHE=1 in dev"
+        f"CACHE_DIR {cache_dir} has no {CACHE_MARKER} marker, so the USB SSD is not mounted; "
+        "mount it, or set ALLOW_UNMOUNTED_CACHE=1 in dev"
     )
 
 

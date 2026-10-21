@@ -903,6 +903,16 @@ from the grilling session:
   docker.service, documented in `deploy/`; the fetcher refuses to start if `$CACHE_DIR`
   is not a mount point (guards against writing to the boot disk), and so does the analyzer
   (NEU-1718), which would otherwise fail every Target on an empty Cache.
+  *Amended 2026-10-21 (NEU-1723):* the guard checks for a marker file,
+  `$CACHE_DIR/.argelander-cache`, created once on the SSD, instead of a mount point. Inside
+  a container every bind-mount target is a mount point, so the old test always passed. The
+  workers bind the SSD's mount point (`${USB_ROOT}` → `/usb`, `create_host_path: false`),
+  so an unplugged SSD leaves an empty directory with no marker and the guard's error lands
+  in their logs; the marker doubles as their healthcheck. `api` mounts only
+  `${USB_ROOT}/plots`, read-only, and sits behind an `api` profile until M6's `web`
+  command exists. `compose.yaml` is now the prod stack alone: the dev `app` service lives in
+  `compose.dev.yaml`, which resets the workers' build, mounts, environment and healthcheck
+  to the repo's. `docs/runbook.md` §10 has the SSD setup.
 - Deploy: `git pull && docker compose pull/build && docker compose up -d` wrapped as
   `task deploy`, run over SSH by Tom. Not Coolify.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks

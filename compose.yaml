@@ -1,30 +1,125 @@
-# Service definitions shared by every environment. compose.dev.yaml layers the dev stack on
-# top (`task up`); the prod services, USB mounts and memory limits arrive with NEU-1723.
-# No credentials here (spec §12): the dev file supplies dev ones, prod reads its Compose env.
+# The prod stack on the Mac mini (spec §10); compose.dev.yaml layers the dev stack on top
+# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD and USB_ROOT come from the
+# mini's .env. Their defaults fail loudly rather than being required with `:?`, which
+# Compose checks per file before merging, so it would refuse the dev stack too: an empty
+# password stops Postgres initialising, and the placeholder USB_ROOT names itself in the
+# "bind source path does not exist" error.
+#
+# The host is a 2011 Mac mini with 16 GB shared with Navidrome and Uptime Kuma, so every
+# service has a memory limit. Postgres stays on the internal SSD; the Cache, the plots and
+# the astropy download cache live on the USB SSD mounted at USB_ROOT.
 name: argelander
+
+# Rotated, so a chatty worker cannot fill the 256 GB boot disk. The services log JSON lines.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+# XDG_CACHE_HOME has to follow ASTRO_CACHE_DIR (see the Dockerfile).
+x-environment: &environment
+  DATABASE_URL: &database-url postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-}@postgres:5432/argelander
+  CACHE_DIR: /usb/cache
+  PLOTS_DIR: /usb/plots
+  ASTRO_CACHE_DIR: /usb/astropy
+  XDG_CACHE_HOME: /usb/astropy
+
+# The workers get the SSD's mount point itself, not its subdirectories: with the SSD
+# unplugged, the mount point is an empty directory on the boot disk, so the workers still
+# start and their mount guard names the problem in their logs (no Cache marker), rather than
+# Docker refusing to create the container. create_host_path stops Docker making an empty
+# USB_ROOT on the boot disk when the path is wrong.
+x-usb: &usb
+  type: bind
+  source: ${USB_ROOT:-/USB_ROOT-is-not-set}
+  target: /usb
+  bind:
+    create_host_path: false
+
+# One image, one package (spec §3): each service is the prod image with its own command.
+x-app: &app
+  build:
+    context: .
+    target: prod
+  image: argelander:latest
+  init: true
+  restart: unless-stopped
+  environment: *environment
+  logging: *logging
+  depends_on:
+    postgres:
+      condition: service_healthy
 
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
+    mem_limit: 1g
     environment:
       POSTGRES_USER: argelander
       POSTGRES_DB: argelander
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    logging: *logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U argelander -d argelander"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  app:
-    build:
-      context: .
-      target: prod
-    image: argelander:latest
-    depends_on:
-      postgres:
-        condition: service_healthy
+  # The workers have no port to probe; healthy means the Cache marker is still readable, which
+  # turns unhealthy if the SSD drops out under a running worker.
+  fetcher:
+    <<: *app
+    command: ["argelander", "fetch-worker"]
+    mem_limit: 1g
+    volumes:
+      - *usb
+    healthcheck:
+      test: ["CMD-SHELL", "test -f \"$$CACHE_DIR/.argelander-cache\""]
+      interval: 1m
+      timeout: 5s
+
+  analyzer:
+    <<: *app
+    command: ["argelander", "analyze-worker"]
+    mem_limit: 3g
+    volumes:
+      - *usb
+    healthcheck:
+      test: ["CMD-SHELL", "test -f \"$$CACHE_DIR/.argelander-cache\""]
+      interval: 1m
+      timeout: 5s
+
+  # The review app reads Postgres and serves the plots, read-only. Behind the `api` profile
+  # until the `web` command exists (M6): drop the profile then. It is reached only on the
+  # tailnet, through the tailscale sidecar (NEU-1724), so it publishes no port. It mounts
+  # only the plots, so the astropy cache stays at the image's writable default.
+  api:
+    <<: *app
+    profiles: [api]
+    command: ["argelander", "web"]
+    mem_limit: 512m
+    environment:
+      DATABASE_URL: *database-url
+      PLOTS_DIR: /usb/plots
+    volumes:
+      - type: bind
+        source: ${USB_ROOT:-/USB_ROOT-is-not-set}/plots
+        target: /usb/plots
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"
+      interval: 1m
+      timeout: 10s
 
 volumes:
   postgres-data:

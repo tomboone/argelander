@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # The Parquet light-curve Cache, the evidence plots, and the astropy/astroquery download
     # directory (not the Cache in the glossary sense). Prod mounts all three from the USB SSD;
-    # the fetcher refuses to run if CACHE_DIR is not a mount point (spec §10), so the defaults
+    # the workers refuse to run if CACHE_DIR lacks the Cache marker (spec §10), so the defaults
     # are only for local dev.
     cache_dir: Path = Path("data/cache")
     plots_dir: Path = Path("data/plots")
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     fetch_poll_interval: float = Field(default=60.0, gt=0)
     # The analyze worker's sleep, in seconds, when no analyze Job waits.
     analyze_poll_interval: float = Field(default=60.0, gt=0)
-    # Lets the fetch and analyze workers run on a CACHE_DIR that is not a mount point. Dev
+    # Lets the fetch and analyze workers run on a CACHE_DIR without the Cache marker. Dev
     # only: in prod an unmounted USB SSD would leave the Cache filling the boot disk, or the
     # analyzer failing every Target on an empty one (spec §10).
     allow_unmounted_cache: bool = False

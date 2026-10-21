@@ -2,14 +2,21 @@
 # Ports bind to 127.0.0.1 only. Postgres defaults to 5433 on the host because the shared
 # localdev Postgres already holds 5432.
 
-# ALLOW_UNMOUNTED_CACHE: the dev Cache is a directory in the repo, not a mount point, which
+# The prod services in compose.yaml point CACHE_DIR, PLOTS_DIR and ASTRO_CACHE_DIR at the USB
+# SSD; here they go back to the repo's data/ (the image's defaults), through the /app mount.
+# ALLOW_UNMOUNTED_CACHE: the dev Cache is a directory in the repo with no Cache marker, which
 # the fetch and analyze workers refuse otherwise (spec §10).
 x-dev-environment: &dev-environment
   DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-argelander}@postgres:5432/argelander}
+  CACHE_DIR: data/cache
+  PLOTS_DIR: data/plots
+  ASTRO_CACHE_DIR: /app/data/astropy
+  XDG_CACHE_HOME: /app/data/astropy
   ALLOW_UNMOUNTED_CACHE: "1"
 
 services:
   postgres:
+    restart: "no"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-argelander}
     ports:
@@ -20,6 +27,7 @@ services:
   # the mount. The editable install in /opt/venv points at /app/src, so edits are live.
   app:
     build:
+      context: .
       target: dev
     image: argelander:dev
     init: true
@@ -27,34 +35,36 @@ services:
     environment: *dev-environment
     volumes:
       - .:/app
-
-  # The two workers, on the app image and the same mount, so `data/cache` and `data/plots`
-  # are the repo's. Opt-in through the `workers` profile (`task workers`): `task up` leaves
-  # them stopped, so nothing fetches until a run is meant. They do not reload on edits;
-  # restart them (`task workers`) to pick up a change.
-  fetcher:
-    image: argelander:dev
-    init: true
-    profiles: [workers]
-    command: ["argelander", "fetch-worker"]
-    environment: *dev-environment
-    volumes:
-      - .:/app
     depends_on:
       postgres:
         condition: service_healthy
+
+  # The two prod workers, moved onto the app image and the same mount, so `data/cache` and
+  # `data/plots` are the repo's: the USB SSD mount, the marker healthcheck and the restart
+  # policy are dropped. Opt-in through the `workers` profile (`task workers`): `task up`
+  # leaves them stopped, so nothing fetches until a run is meant. They do not reload on
+  # edits; restart them (`task workers`) to pick up a change.
+  fetcher:
+    build: !reset null
+    image: argelander:dev
+    profiles: [workers]
+    restart: "no"
+    environment: *dev-environment
+    volumes: !override
+      - .:/app
+    healthcheck:
+      disable: true
 
   analyzer:
+    build: !reset null
     image: argelander:dev
-    init: true
     profiles: [workers]
-    command: ["argelander", "analyze-worker"]
+    restart: "no"
     environment: *dev-environment
-    volumes:
+    volumes: !override
       - .:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    healthcheck:
+      disable: true
 
   jupyter:
     build:
