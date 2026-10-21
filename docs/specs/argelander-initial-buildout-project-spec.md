@@ -67,7 +67,7 @@ src/argelander/
   db/
     models.py          SQLAlchemy 2 declarative models (section 4)
     session.py         sync engine/session for workers, async engine/session for FastAPI (psycopg 3)
-    queue.py           claim(), complete(), fail(), release_stale()
+    queue.py           enqueue(), claim(), complete(), fail(), release_stale()
   alembic/             migrations (env.py reads DATABASE_URL from config)
   catalog/
     vsx.py             VizieR B/vsx slice query via astroquery
@@ -161,6 +161,14 @@ indexed. `light_curve_files.source_key` and `path` are null on an `empty` or `fa
 Migrations live in `src/argelander/alembic/`; `argelander db-upgrade` (`task migrate`) applies
 them and `tests/test_db.py` runs the equivalent of `alembic check` against a throwaway
 database.
+
+*Amended 2026-10-21 (NEU-1714):* `jobs` also has a partial unique index,
+`uq_jobs_kind_target_id_active`, on `(kind, target_id)` where `status` is `pending` or
+`claimed`. `queue.enqueue` inserts with `ON CONFLICT DO NOTHING` against it, so enqueueing a
+Target that already has an active Job of that kind is a no-op, race-free; once that Job is
+`done` or `failed` the Target can be enqueued again. The queue functions never commit: a
+worker commits straight after `claim`, so the claim survives a crash for `release_stale` to
+recover.
 
 **Target status** is derived for display, not stored as truth: it follows the newest Job
 and Proposal. A stored `status` column on `targets` is a cache updated by the workers
@@ -670,6 +678,10 @@ from the grilling session:
   `tests/test_db.py` needs the dev stack's Postgres (CI's `ci` job runs one as a service). It
   migrates a throwaway `<name>_test` database, skips without `DATABASE_URL` outside CI, and
   fails without it in CI.
+
+  *Amended 2026-10-21 (NEU-1714):* the `database_url` and `engine` fixtures live in
+  `tests/conftest.py`, shared by `tests/test_db.py` and `tests/test_queue.py`; each database
+  test module gets its own fresh `<name>_test` database.
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.
