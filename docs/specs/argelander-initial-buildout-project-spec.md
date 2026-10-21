@@ -677,8 +677,8 @@ from the grilling session:
   *Amended 2026-10-20 (NEU-1838):* the prototype gate's tests are marked `gate` and run in
   a second job, `gate`, beside `ci`, which runs `pytest -m "not live and not gate"`. The gate
   took over ten minutes on a hosted runner (BoxLeastSquares over ZTF's baseline, for 27
-  stars on four cores) until NEU-1839's two-stage BLS search cut the 27 stars' analysis
-  from 150 s to 41 s on 14 local cores; CI took about two before it. On a PR the `gate` job runs the tests
+  stars on four cores) until NEU-1839's two-stage BLS search cut it to 3 min 17 s (3 min
+  35 s for the whole job, measured 2026-10-21); CI took about two before it. On a PR the `gate` job runs the tests
   only when the PR changes `src/`, `tests/fixtures/`, `tests/test_prototype.py`,
   `tests/conftest.py`, `pyproject.toml` or `uv.lock`, and otherwise succeeds without running
   them; on a push to `main` it always runs them, each push in its own concurrency group. The job always reports, so the check exists on every PR.
