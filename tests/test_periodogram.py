@@ -4,6 +4,8 @@ The synthetic stars are sampled the way the sparse surveys sample: a few hundred
 random times of night over several observing seasons, so the searches face real gaps.
 """
 
+import dataclasses
+
 import numpy as np
 from astropy.timeseries import LombScargle
 
@@ -119,6 +121,25 @@ def test_cleaning_drops_flagged_points_and_clips_dense_outliers() -> None:
     assert cleaned.time.size == 988
     assert time[500] not in cleaned.time
     assert np.all(cleaned.quality == 0)
+
+
+def test_cleaning_keeps_each_surviving_points_oid() -> None:
+    rng = np.random.default_rng(1706)
+    time = 2459000.5 + np.arange(1000) * 200 / 86400
+    flux = 1.0 + 0.05 * np.sin(2 * np.pi * time / 0.8) + rng.normal(0, 0.001, time.size)
+    flux[500] += 0.02
+    quality = np.zeros(time.size, dtype=np.int32)
+    quality[:10] = 1
+    oid = np.where(np.arange(time.size) % 3 == 0, 797112400008865, 1830101400004824)
+    lc = dataclasses.replace(
+        light_curve(time, flux, 0.001, value_kind="flux", quality=quality), oid=oid
+    )
+
+    cleaned = clean(lc)
+
+    assert cleaned.oid is not None
+    assert cleaned.oid.size == cleaned.time.size == 989
+    np.testing.assert_array_equal(cleaned.oid, oid[np.isin(time, cleaned.time)])
 
 
 def test_cleaning_keeps_a_fast_pulsators_extremes() -> None:

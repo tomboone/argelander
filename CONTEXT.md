@@ -27,6 +27,13 @@ _Avoid_: photometry, data, time series
 The on-disk Parquet store of raw Light Curves, keyed by survey and source ID.
 Re-downloadable; never the system of record.
 
+**Zero-point offset**:
+The constant magnitude difference between two ZTF fields' measurements of the same
+Target, compared at equal phase of its cycle. A large one means a neighbour's light
+sits in one field's photometry and not the other's; a difference between raw medians
+is not one, since a variable star's fields sample its cycle unevenly.
+_Avoid_: calibration error, field offset
+
 ### Analysis
 
 **Analysis**:

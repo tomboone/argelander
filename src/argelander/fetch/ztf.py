@@ -4,10 +4,13 @@ Spec §5.1. A position query returns a separate object id (oid) for every field 
 quadrant the star fell in, per filter, and each oid carries its own photometric zero point.
 Per band, the oid with the most good points is the reference; every other oid is shifted by
 the difference between the two medians so the merged curve does not show the field-to-field
-offsets as variability. An offset above 0.05 mag is more than a zero point explains, most
-likely a neighbour blended into one field's photometry, so the band is flagged
-`blend_suspect` in its `meta`; the analyzer's blend step (spec §6) lifts it to the Target.
-Keeping only the reference oid would avoid the question and throw away half the epochs.
+offsets as variability. Keeping only the reference oid would throw away half the epochs.
+
+The median shift is a first alignment, good enough for the periodogram, but not a measure
+of the zero points: a variable star's fields sample its cycle unevenly, so their medians
+differ even when their zero points agree. Each point keeps its oid in `LightCurve.oid`, and
+the analyzer's blend step (spec §6 step 7) compares the fields at equal phase once the
+alias test has settled the period, and judges the blend there.
 
 Only rows with `catflags == 0` are kept; IRSA's own `BAD_CATFLAGS_MASK` is not used, so the
 filter is visible here and in the tests.
@@ -28,7 +31,6 @@ from argelander.lightcurve import LightCurve
 
 IRSA_LIGHT_CURVES_URL = "https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves"
 SEARCH_RADIUS_ARCSEC = 1.5
-BLEND_OFFSET_MAG = 0.05
 
 # IRSA's filtercode → `LightCurve.band`. The i band is out of scope (spec §5.1).
 _BANDS = {"zg": "g", "zr": "r"}
@@ -106,6 +108,7 @@ def _merge_oids(
         ],
         dtype=np.float64,
     )
+    point_oids = np.array([int(oid) for oid in oids for _ in by_oid[oid]], dtype=np.int64)
     time = ztf_mjd_to_bjd_tdb(rows[:, 0], ra, dec)
     order = np.argsort(time, kind="stable")
     return LightCurve(
@@ -120,12 +123,12 @@ def _merge_oids(
         meta={
             "oids": oids,
             "reference_oid": reference,
-            # Magnitudes added to each non-reference oid's points.
+            # Magnitudes added to each non-reference oid's points: the median shift.
             "zero_point_offsets": offsets,
-            "blend_suspect": any(abs(o) > BLEND_OFFSET_MAG for o in offsets.values()),
             "time_system": "MJD UTC at Palomar",
             "fetched_at": fetched_at,
         },
+        oid=point_oids[order],
     )
 
 

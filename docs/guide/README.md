@@ -11,7 +11,7 @@ go out under his name on evidence he cannot read.
 | [1. Why variable stars matter](01-why-variable-stars-matter.md) | What makes a star vary, what a period and a type tell astronomers, who uses VSX, and what a revision is. |
 | [2. The problem Argelander addresses](02-the-vsx-problem.md) | How VSX came to hold wrong periods and types: bulk imports, the 1-day alias, half periods, and neighbouring stars blending into each other. |
 | [3. How to read the evidence](03-reading-the-evidence.md) | One section per step the pipeline takes, each tied to the plot the review app will show. |
-| [4. Can you trust it?](04-can-you-trust-it.md) | The prototype gate's results on 27 known stars, told plainly: what passes, the one known failure, the thresholds, and what the pipeline cannot know. |
+| [4. Can you trust it?](04-can-you-trust-it.md) | The prototype gate's results on 27 known stars, told plainly: what passes, the one failure and its fix, the thresholds, and what the pipeline cannot know. |
 
 Read them in order the first time. Chapter 3 is the one to come back to with a Proposal
 open.

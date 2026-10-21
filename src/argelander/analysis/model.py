@@ -100,10 +100,29 @@ class Contamination:
 
 
 @dataclass(frozen=True)
+class ZeroPointOffsets:
+    """One ZTF band's oid zero points compared at equal phase (spec §6 step 7)."""
+
+    band: str
+    period: float  # the band's alias-test best period, which the oids were folded at
+    bins: int  # phase bins, as the alias test cut the fold
+    reference_oid: str  # the fetcher's reference oid, which defines zero
+    # Non-reference oid → the magnitudes that align its raw points with the band's other oids
+    # at the same phase, in the sign of the fetcher's `meta["zero_point_offsets"]`. With two
+    # oids that is its zero point relative to the reference; with more, the others' template
+    # carries their own median shifts, so it is relative to them as merged.
+    offsets: dict[str, float]
+    unmeasured: tuple[str, ...]  # oids with too few points in bins the others populate
+    suspect: bool  # any |offset| above `blend.BLEND_OFFSET_MAG`
+
+
+@dataclass(frozen=True)
 class Blend:
     """The per-survey blend checks for one Target (spec §6 step 7)."""
 
     contaminations: tuple[Contamination, ...]  # one per contaminated survey
+    # One per ZTF band whose zero points could be compared, flagged or not.
+    zero_points: tuple[ZeroPointOffsets, ...] = ()
 
     @property
     def flags(self) -> frozenset[BlendFlag]:

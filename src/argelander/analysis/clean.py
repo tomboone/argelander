@@ -60,6 +60,7 @@ def clean(lc: LightCurve) -> LightCurve:
                 "n_clipped": int(clipped.sum()),
             },
         },
+        oid=lc.oid[keep] if lc.oid is not None else None,
     )
 
 

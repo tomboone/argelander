@@ -2,6 +2,7 @@
 
 import ast
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -13,7 +14,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "argelander"
 
 
 def make_lc(**overrides: object) -> LightCurve:
-    fields: dict[str, object] = {
+    fields: dict[str, Any] = {
         "survey": "ztf",
         "source_key": "633211200012345+633211100054321",
         "band": "g",
@@ -54,6 +55,46 @@ def test_meta_is_stored_in_parquet_file_metadata(tmp_path: Path) -> None:
     assert schema.names == ["time", "value", "error", "quality"]
     assert schema.metadata is not None
     assert b"argelander" in schema.metadata
+
+
+def test_oid_round_trips_as_a_fifth_column(tmp_path: Path) -> None:
+    oid = np.array([633211200012345, 633211100054321, 633211200012345, 633211200012345])
+    lc = make_lc(oid=oid)
+    path = tmp_path / "lc.parquet"
+
+    lc.to_parquet(path)
+    loaded = LightCurve.from_parquet(path)
+
+    assert pq.read_schema(path).names == ["time", "value", "error", "quality", "oid"]
+    assert loaded == lc
+    assert loaded.oid is not None
+    assert loaded.oid.dtype == np.int64
+    np.testing.assert_array_equal(loaded.oid, oid)
+
+
+def test_a_file_without_an_oid_column_reads_back_oid_none(tmp_path: Path) -> None:
+    path = tmp_path / "lc.parquet"
+    make_lc().to_parquet(path)
+
+    assert LightCurve.from_parquet(path).oid is None
+
+
+def test_equality_compares_oid() -> None:
+    oid = np.array([1, 2, 1, 1])
+
+    assert make_lc(oid=oid) == make_lc(oid=oid.copy())
+    assert make_lc(oid=oid) != make_lc(oid=np.array([1, 2, 2, 1]))
+    assert make_lc(oid=oid) != make_lc()
+
+
+def test_oid_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError, match="oid has 3 entries for 4 points"):
+        make_lc(oid=np.array([1, 2, 1]))
+
+
+def test_float_oid_raises() -> None:
+    with pytest.raises(ValueError, match="oid must be integer"):
+        make_lc(oid=np.array([1.0, 2.0, 1.0, 1.0]))
 
 
 def test_to_parquet_creates_missing_cache_directories(tmp_path: Path) -> None:

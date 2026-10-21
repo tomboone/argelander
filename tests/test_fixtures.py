@@ -127,6 +127,8 @@ def test_fixture_is_a_trimmed_light_curve_of_its_path(path: Path) -> None:
     lc = LightCurve.from_parquet(path)
     assert (lc.survey, lc.band) == (path.parts[-3], path.stem)
     assert 0 < len(lc.time) <= build_fixtures.MAX_POINTS
+    # Each ZTF point keeps its oid, which the zero-point comparison needs (NEU-1798).
+    assert (lc.oid is not None) == (lc.survey == "ztf")
     if "sap" in lc.meta:
         assert len(lc.meta["sap"]) == len(lc.time)
 
@@ -144,13 +146,16 @@ def test_trim_keeps_a_seeded_random_subset_in_time_order() -> None:
     assert trimmed.meta["fixture_trim"] == {"points": 2000, "kept": 500, "seed": 7}
 
 
-def test_trim_keeps_value_error_and_sap_aligned_with_time() -> None:
+def test_trim_keeps_value_error_sap_and_oid_aligned_with_time() -> None:
     lc = make_lc(1000, sap=[float(i) for i in range(1000)])
-    lc = dataclasses.replace(lc, value=lc.time * 2.0, error=lc.time * 3.0)
+    lc = dataclasses.replace(
+        lc, value=lc.time * 2.0, error=lc.time * 3.0, oid=np.arange(1000, dtype=np.int64)
+    )
     trimmed = build_fixtures.trim(lc, 100, seed=1)
     np.testing.assert_array_equal(trimmed.value, trimmed.time * 2.0)
     np.testing.assert_array_equal(trimmed.error, trimmed.time * 3.0)
     np.testing.assert_array_equal(trimmed.meta["sap"], trimmed.time)
+    np.testing.assert_array_equal(trimmed.oid, trimmed.time)
 
 
 def test_trim_leaves_a_short_light_curve_alone() -> None:

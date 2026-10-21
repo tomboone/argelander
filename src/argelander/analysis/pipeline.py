@@ -42,7 +42,7 @@ def analyze(
         analysis.periods.extend(results)
         analysis.alias_tests.append(alias_test(lc, candidates(*results)))
     if record is not None:
-        analysis.blend = blend(record, cleaned)
+        analysis.blend = blend(record, cleaned, analysis.alias_tests)
         analysis.cmd = cmd_position(record)
     contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
     analysis.agreement = agreement(analysis.alias_tests, gaia_period, contaminated)

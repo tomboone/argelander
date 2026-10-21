@@ -1,4 +1,4 @@
-"""The ZTF fetcher: per-filter oid merge, zero-point offsets and the blend flag (spec §5.1).
+"""The ZTF fetcher: per-filter oid merge, the median shifts and each point's oid (spec §5.1).
 
 The offline tests replay a recorded IRSA response for CSS_J173907.6+550053, an RRAB in Draco
 at G 14.7 that ZTF saw in fields 797, 1830 and 1831, so each band arrives as several oids.
@@ -21,12 +21,7 @@ import pytest
 from argelander.analysis.time import ztf_mjd_to_bjd_tdb
 from argelander.fetch import ztf
 from argelander.fetch.base import ArchiveLimits, Fetcher, TargetRef
-from argelander.fetch.ztf import (
-    BLEND_OFFSET_MAG,
-    ZtfFetcher,
-    light_curves_from_irsa_csv,
-    query_irsa,
-)
+from argelander.fetch.ztf import ZtfFetcher, light_curves_from_irsa_csv, query_irsa
 from argelander.lightcurve import LightCurve
 
 RECORDED = Path(__file__).parent / "fixtures" / "ztf" / "css_j173907_irsa.csv"
@@ -121,15 +116,23 @@ def test_times_are_bjd_tdb_and_sorted() -> None:
     assert r.meta["time_system"] == "MJD UTC at Palomar"
 
 
-def test_an_offset_above_the_threshold_sets_blend_suspect() -> None:
-    curves = fetch_recorded()
-    g_offsets = curves["g"].meta["zero_point_offsets"].values()
-    r_offsets = curves["r"].meta["zero_point_offsets"].values()
-    assert max(abs(o) for o in g_offsets) > BLEND_OFFSET_MAG
-    assert max(abs(o) for o in r_offsets) <= BLEND_OFFSET_MAG
+def test_each_point_carries_the_oid_of_the_row_it_came_from() -> None:
+    for band, oids in (("g", G_OIDS), ("r", R_OIDS)):
+        lc = fetch_recorded()[band]
+        assert lc.oid is not None
+        assert lc.oid.size == lc.time.size
+        for oid in oids:
+            times = ztf_mjd_to_bjd_tdb(good_mjds(oid), TARGET.ra, TARGET.dec)
+            index = np.searchsorted(lc.time, times)
+            np.testing.assert_allclose(lc.time[index], times, rtol=0, atol=1e-9)
+            assert np.all(lc.oid[index] == int(oid)), (band, oid)
 
-    assert curves["g"].meta["blend_suspect"] is True
-    assert curves["r"].meta["blend_suspect"] is False
+
+def test_the_fetcher_does_not_judge_blends() -> None:
+    """The analyzer compares the zero points at equal phase (spec §6 step 7, NEU-1798)."""
+    curves = fetch_recorded()
+
+    assert all("blend_suspect" not in lc.meta for lc in curves.values())
 
 
 def test_a_single_oid_band_has_no_offsets() -> None:
@@ -141,7 +144,8 @@ def test_a_single_oid_band_has_no_offsets() -> None:
     assert list(curves) == ["r"]
     assert curves["r"].source_key == R_OIDS[0]
     assert curves["r"].meta["zero_point_offsets"] == {}
-    assert curves["r"].meta["blend_suspect"] is False
+    assert curves["r"].oid is not None
+    assert set(curves["r"].oid) == {int(R_OIDS[0])}
 
 
 def test_a_header_only_response_means_no_ztf_data() -> None:
