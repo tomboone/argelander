@@ -195,12 +195,33 @@ def test_a_target_gaia_has_no_record_of_is_kept_without_gaia_columns(
 
     with sessions() as session:
         missing = target(session, 7832051)
+        # SQL NULL, which `IS NULL` matches, not JSON null.
+        no_field = session.scalars(select(Target.gaia_source_id).where(Target.tess_field.is_(None)))
+        assert list(no_field) == [NOT_IN_GAIA]
 
     assert missing.gaia_source_id == NOT_IN_GAIA
     assert missing.gaia_g is None
     assert missing.gaia_vari_detail is None
     assert missing.tess_field is None
     assert missing.neighbours == []
+
+
+def test_gaia_record_rebuilds_the_stored_record_for_the_analyzer(
+    sessions: sessionmaker[Session], recorded_gaia: dict[int, GaiaRecord]
+) -> None:
+    select_slice(sessions)
+
+    with sessions() as session:
+        stored = {t.gaia_source_id: t for t in session.scalars(select(Target))}
+
+    rebuilt = {source_id: selector.gaia_record(found) for source_id, found in stored.items()}
+
+    assert rebuilt.pop(NOT_IN_GAIA) is None
+    assert rebuilt
+    for source_id, record in rebuilt.items():
+        found = stored[source_id]
+        # Gaia's own position is not stored; the record carries the Target's.
+        assert record == dataclasses.replace(recorded_gaia[source_id], ra=found.ra, dec=found.dec)
 
 
 def test_running_twice_duplicates_no_targets_or_jobs(sessions: sessionmaker[Session]) -> None:

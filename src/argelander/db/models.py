@@ -129,7 +129,8 @@ class Base(DeclarativeBase):
     type_annotation_map = {
         int: BigInteger,
         datetime: DateTime(timezone=True),
-        dict[str, Any]: JSONB,
+        # none_as_null: Python None is SQL NULL, not the JSON null `IS NULL` does not match.
+        dict[str, Any]: JSONB(none_as_null=True),
         list[str]: ARRAY(Text),
     }
 
@@ -272,6 +273,9 @@ class Analysis(_Row, Base):
     agreement_relation: Mapped[AgreementRelation | None] = mapped_column(
         _vocabulary(AgreementRelation, "agreement_relation")
     )
+    # How far apart the agreeing votes were allowed to be, as a fraction (spec §6 step 6);
+    # null without Agreement.
+    agreement_tolerance: Mapped[float | None]
     blend: Mapped[dict[str, Any] | None]
     cmd: Mapped[dict[str, Any] | None]  # abs G, BP−RP, distance
     plots: Mapped[dict[str, Any] | None]  # kind → path

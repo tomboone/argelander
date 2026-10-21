@@ -43,8 +43,11 @@ class Settings(BaseSettings):
     # MAST downloads at a time, sets the pace.
     fetch_batch_size: int = Field(default=10, ge=1)
     fetch_poll_interval: float = Field(default=60.0, gt=0)
-    # Lets the fetch worker run on a CACHE_DIR that is not a mount point. Dev only: in prod
-    # an unmounted USB SSD would leave the Cache filling the boot disk (spec §10).
+    # The analyze worker's sleep, in seconds, when no analyze Job waits.
+    analyze_poll_interval: float = Field(default=60.0, gt=0)
+    # Lets the fetch and analyze workers run on a CACHE_DIR that is not a mount point. Dev
+    # only: in prod an unmounted USB SSD would leave the Cache filling the boot disk, or the
+    # analyzer failing every Target on an empty one (spec §10).
     allow_unmounted_cache: bool = False
 
 
