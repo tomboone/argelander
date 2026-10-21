@@ -24,3 +24,12 @@ def main() -> None:
 def version() -> None:
     """Print the pipeline version."""
     typer.echo(PIPELINE_VERSION)
+
+
+@app.command("db-upgrade")
+def db_upgrade() -> None:
+    """Apply database migrations up to the newest revision."""
+    # Imported here so `version` and --help never load SQLAlchemy and Alembic.
+    from argelander.db.migrations import upgrade
+
+    upgrade()
