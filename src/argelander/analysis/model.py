@@ -147,6 +147,43 @@ class CmdPosition:
     region: Region
 
 
+@dataclass(frozen=True)
+class Shape:
+    """The light curve's shape, folded at the agreed period in one band, for the classifier's
+    shape rules (spec §7). Magnitudes throughout; a flux band is converted first.
+
+    Phases are fractions of the cycle. The eclipse measures come from the binned fold, which
+    keeps a narrow eclipse's depth; the pulsation measures from a Fourier fit, which keeps a
+    steep rise smooth.
+    """
+
+    survey: str
+    band: str
+    n_points: int
+    period: float  # days, the Agreement's
+    amplitude: float  # mag in `band`, faintest less brightest bin of the binned fold
+    amplitude_v: float  # `amplitude` scaled to V (`types.AMPLITUDE_TO_V`), as VSX's ranges are
+    snr: float  # `amplitude` over the scatter of the points about the binned fold
+    rise: float  # minimum to maximum light, as a fraction of the cycle
+    skewness: float  # of the fitted curve's magnitudes; negative when maxima are sharp
+    r21: float  # Fourier amplitude ratio A2 / A1
+    eclipse_width: float  # of the cycle around primary minimum fainter than half its depth
+    secondary_depth: float  # deepest point 0.3–0.7 of a cycle after primary minimum / its depth
+    flat_fraction: float  # of the cycle within a tenth of the amplitude of maximum light
+
+
+@dataclass(frozen=True)
+class Variability:
+    """How far one band's spread exceeds its noise, period or not (spec §7, `CST` and `L`)."""
+
+    survey: str
+    band: str
+    n_points: int
+    spread: float  # mag, the 5th to the 95th percentile
+    noise: float  # mag, the median error
+    excess: float  # `spread` over the spread noise alone would give, 3.29 × `noise`
+
+
 @dataclass
 class Analysis:
     """One Analysis per Target per Pipeline Version (spec §4 `analyses`)."""
@@ -158,3 +195,5 @@ class Analysis:
     agreement: Agreement | None = None  # None when no two sources agree
     blend: Blend | None = None
     cmd: CmdPosition | None = None
+    shape: Shape | None = None  # None without Agreement or a band to fold
+    variability: Variability | None = None  # None without an uncontaminated band
