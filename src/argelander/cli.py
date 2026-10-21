@@ -148,6 +148,99 @@ def classify(
     typer.echo(f"redrew the plots of {count} analyses")
 
 
+@app.command()
+def enqueue(
+    kind: Annotated[str, typer.Argument(help="The Job kind: fetch or analyze.")],
+    target: Annotated[str | None, typer.Option(help="Only this Target, by VSX name.")] = None,
+    slice_name: Annotated[
+        str | None,
+        typer.Option(
+            "--slice", help="Every Target this Slice selected first, by the Slice's name."
+        ),
+    ] = None,
+    failed: Annotated[
+        bool,
+        typer.Option(
+            "--failed",
+            help="Only Targets whose newest Job of this kind failed for good; alone, across "
+            "every Slice.",
+        ),
+    ] = False,
+) -> None:
+    """Queue a fetch or analyze Job for each Target named, and set its status to match.
+
+    A Target that already has a Job of either kind pending or claimed is skipped.
+    """
+    # Imported here so `version` and --help never load SQLAlchemy.
+    from argelander import status
+    from argelander.db.models import JobKind
+    from argelander.db.session import sync_session_factory
+
+    try:
+        job_kind = JobKind(kind)
+    except ValueError as error:
+        choices = ", ".join(JobKind)
+        raise typer.BadParameter(f"{kind!r} is not one of {choices}", param_hint="KIND") from error
+    if target is not None and slice_name is not None:
+        raise typer.BadParameter("give --target or --slice, not both")
+    if target is None and slice_name is None and not failed:
+        raise typer.BadParameter("give --target, --slice or --failed")
+
+    with sync_session_factory().begin() as session:
+        try:
+            ids = status.target_ids(
+                session, job_kind, vsx_name=target, slice_name=slice_name, failed=failed
+            )
+        except status.UnknownTarget as error:
+            raise typer.BadParameter(str(error), param_hint="--target") from error
+        except status.UnknownSlice as error:
+            raise typer.BadParameter(str(error), param_hint="--slice") from error
+        queued = status.requeue(session, job_kind, ids)
+    typer.echo(
+        f"queued {queued} {job_kind} Jobs for {len(ids)} Targets "
+        f"({len(ids) - queued} already had a Job pending or claimed)"
+    )
+
+
+@app.command("status")
+def status_(
+    slice_name: Annotated[
+        str | None,
+        typer.Option(
+            "--slice", help="Only the Targets this Slice selected first, by the Slice's name."
+        ),
+    ] = None,
+) -> None:
+    """Count the Targets at each status and the Jobs of each kind at each status."""
+    # Imported here so `version` and --help never load SQLAlchemy.
+    from argelander import status
+    from argelander.db.session import sync_session_factory
+
+    with sync_session_factory()() as session:
+        try:
+            counts = status.counts(session, slice_name)
+        except status.UnknownSlice as error:
+            raise typer.BadParameter(str(error), param_hint="--slice") from error
+    typer.echo("\n".join(counts.lines()))
+
+
+@app.command("recompute-status")
+def recompute_status() -> None:
+    """Rederive every Target's status from its Jobs and Proposals; print each change.
+
+    A Proposal's Review and Submission count too (spec §4).
+    """
+    # Imported here so `version` and --help never load SQLAlchemy.
+    from argelander import status
+    from argelander.db.session import sync_session_factory
+
+    with sync_session_factory().begin() as session:
+        changes = status.recompute(session)
+    for change in changes:
+        typer.echo(f"{change.vsx_name}: {change.was} -> {change.now}")
+    typer.echo(f"changed {len(changes)} Targets")
+
+
 @app.command("db-upgrade")
 def db_upgrade() -> None:
     """Apply database migrations up to the newest revision."""

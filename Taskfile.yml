@@ -17,8 +17,20 @@ tasks:
       - 'echo "JupyterLab: http://localhost:${JUPYTER_PORT:-8888}/lab"'
 
   down:
-    desc: Stop the dev stack (the postgres volume is kept)
-    cmd: "{{.COMPOSE}} down"
+    desc: Stop the dev stack and its workers (the postgres volume is kept)
+    cmd: "{{.COMPOSE}} --profile workers down"
+
+  workers:
+    desc: Start (or restart) the fetch and analyze workers on the dev stack
+    cmd: "{{.COMPOSE}} --profile workers up --detach --force-recreate fetcher analyzer"
+
+  workers:logs:
+    desc: Follow the fetch and analyze workers' JSON logs
+    cmd: "{{.COMPOSE}} logs --follow --tail 50 fetcher analyzer"
+
+  workers:stop:
+    desc: Stop the fetch and analyze workers, leaving the rest of the dev stack up
+    cmd: "{{.COMPOSE}} --profile workers stop fetcher analyzer"
 
   shell:
     desc: Open a shell in the app container
