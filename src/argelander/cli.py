@@ -71,6 +71,26 @@ def select_slice(
     typer.echo("\n".join(summary.lines()))
 
 
+@app.command("fetch-worker")
+def fetch_worker() -> None:
+    """Claim fetch Jobs, fetch every survey, index the Cache and queue analysis, until stopped.
+
+    Refuses to start when CACHE_DIR is not a mount point, unless ALLOW_UNMOUNTED_CACHE=1.
+    """
+    # Imported here so `version` and --help never load the fetchers and SQLAlchemy.
+    from argelander.config import get_settings
+    from argelander.db.session import sync_session_factory
+    from argelander.fetch import worker
+    from argelander.logs import configure_logging
+
+    configure_logging()
+    try:
+        worker.main(get_settings(), sync_session_factory())
+    except worker.CacheNotMounted as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+
+
 @app.command("db-upgrade")
 def db_upgrade() -> None:
     """Apply database migrations up to the newest revision."""

@@ -132,6 +132,11 @@ lightkurve, pyarrow, numpy, matplotlib, FastAPI, Jinja2, htmx (vendored static f
 pydantic-settings for config. structlog or stdlib logging to stdout as JSON lines. No
 pandas or polars in the core package (notebooks may use pandas for display).
 
+*Amended 2026-10-21 (NEU-1717):* stdlib logging it is: `argelander/logs.py` holds a JSON
+formatter (time, level, logger, message, the `extra=` fields, the traceback) and
+`configure_logging()`, which each long-running service calls once at startup; `fetch-worker`
+is the first.
+
 Pin exact versions in `uv.lock`; the Mac mini's 2011 CPU means a wheel that crashes with
 "illegal instruction" is pinned to the last working version with a comment (handover:
 Host constraints).
@@ -186,6 +191,18 @@ Job only for a Target still `selected`, so a rerun does not fetch again what the
 already taken. When VSX lists one Gaia source under two OIDs, `gaia_source_id` being unique,
 the Target already stored for the source keeps it, across runs too; otherwise the lower OID
 does.
+
+*Amended 2026-10-21 (NEU-1717):* `light_curve_files` is unique on `(target_id, survey)`, and
+the fetch worker (`argelander/fetch/worker.py`) upserts on it, so a re-fetch replaces the row.
+`path` is the survey's Cache directory for the Target relative to `CACHE_DIR`
+(`{survey}/{gaia_source_id}`), not one file: a row covers every band in `bands`. `source_key`
+joins the bands' source keys with "+", and `n_points`, `t_min_bjd` and `t_max_bjd` span all
+of them. `fetcher_version` is `FETCHER_VERSION` in the worker, bumped whenever a fetcher
+changes what it writes. The worker clears the directory before writing it, whatever the
+outcome, and again when a write fails partway, so an `empty` or `failed` row never sits beside
+band files. The files are written before the transaction commits: a commit that fails leaves
+them ahead of their rows until the Job's next attempt rewrites both. A re-fetch that fails
+for one survey discards that survey's earlier files with its row; the Cache is re-downloadable.
 
 **Target status** is derived for display, not stored as truth: it follows the newest Job
 and Proposal. A stored `status` column on `targets` is a cache updated by the workers
@@ -312,6 +329,22 @@ Per-archive concurrency is a local semaphore in `fetch/base.py` (defaults: IRSA 
 Gaia 1, ASAS-SN 2) with exponential backoff on HTTP 429/5xx and a per-Target
 `max_attempts` of 3. Gaia catalog data (colour, parallax, vari_*, neighbours) is **not** a
 fetch Job: `select-slice` fetches it for the whole Slice through ADQL upload joins.
+
+*Amended 2026-10-21 (NEU-1717):* each pass of the fetch worker (`argelander fetch-worker`)
+releases stale claims, then claims up to `FETCH_BATCH_SIZE` fetch Jobs (default 10, so a
+batch, paced by TESS's two MAST downloads at a time, ends well inside the 30-minute stale
+window) in one transaction, moving their Targets to `fetching`. It runs ZTF, TESS and ASAS-SN once per
+Target and Gaia's `fetch_many` once for the whole batch, all at once under the semaphores.
+It then records each Target in its own transaction: an exception from one survey makes only
+that survey's row `failed`, with the error, and the Job is `done`, the Target `fetched` and
+an `analyze` Job queued. When every survey failed, `queue.fail` sends the Job back to
+`pending`, or to `failed` with the Target once it has used its `max_attempts`; so does an error
+outside any survey while recording a Target, which leaves the batch's other Targets to go on.
+With nothing to claim, or after a pass that failed outright (Postgres restarting), it sleeps
+`FETCH_POLL_INTERVAL` seconds (default 60) and tries again rather than exiting. It refuses to start when
+`CACHE_DIR` is not a mount point unless `ALLOW_UNMOUNTED_CACHE=1`, which `compose.dev.yaml`
+sets for the dev containers; `.env.example` says 0, so a prod `.env` copied from it keeps the
+guard (§10).
 
 **Per-survey contamination radii** (from VSX's submission notice): Gaia ~0.7″, ZTF ~2″,
 ASAS-SN ~17″, TESS ~120″ and larger for bright stars. The Gaia neighbour query therefore
@@ -718,6 +751,9 @@ from the grilling session:
 
   *Amended 2026-10-21 (NEU-1716):* `tests/test_selector.py` is a database test module too. It
   replays the recorded VSX and Gaia answers through `select-slice`'s own code.
+
+  *Amended 2026-10-21 (NEU-1717):* so is `tests/test_fetch_worker.py`, which drives fake
+  fetchers through the worker against real Jobs; its mount-guard tests need no database.
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.

@@ -197,6 +197,9 @@ class LightCurveFile(_Row, Base):
     """The Cache index: one row per fetched survey Light Curve set for a Target."""
 
     __tablename__ = "light_curve_files"
+    # One row per (Target, survey): the fetch worker upserts on it, so a re-fetch replaces
+    # the row rather than adding a second.
+    __table_args__ = (UniqueConstraint("target_id", "survey"),)
 
     target_id: Mapped[int] = _target_fk()
     survey: Mapped[Survey] = mapped_column(_vocabulary(Survey, "survey"))

@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     # table's own max_attempts, not this.
     fetch_max_attempts: int = Field(default=3, ge=1)
 
+    # The fetch worker (spec §3): how many fetch Jobs it claims at once, so Gaia's epoch
+    # photometry goes out as one batched request for all of them, and how long it sleeps,
+    # in seconds, when the queue is empty. A batch is recorded only once all of it has been
+    # fetched, so it has to finish well inside the 30-minute stale-claim window: TESS, at two
+    # MAST downloads at a time, sets the pace.
+    fetch_batch_size: int = Field(default=10, ge=1)
+    fetch_poll_interval: float = Field(default=60.0, gt=0)
+    # Lets the fetch worker run on a CACHE_DIR that is not a mount point. Dev only: in prod
+    # an unmounted USB SSD would leave the Cache filling the boot disk (spec §10).
+    allow_unmounted_cache: bool = False
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
