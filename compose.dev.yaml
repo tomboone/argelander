@@ -1,8 +1,12 @@
 # Dev stack: `docker compose -f compose.yaml -f compose.dev.yaml`, wrapped as `task up`.
 # Ports bind to 127.0.0.1 only. Postgres defaults to 5433 on the host because the shared
 # localdev Postgres already holds 5432.
-x-dev-database-url: &dev-database-url
+
+# ALLOW_UNMOUNTED_CACHE: the dev Cache is a directory in the repo, not a mount point, which
+# the fetch worker refuses otherwise (spec §10).
+x-dev-environment: &dev-environment
   DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-argelander}@postgres:5432/argelander}
+  ALLOW_UNMOUNTED_CACHE: "1"
 
 services:
   postgres:
@@ -20,7 +24,7 @@ services:
     image: argelander:dev
     init: true
     command: ["sleep", "infinity"]
-    environment: *dev-database-url
+    environment: *dev-environment
     volumes:
       - .:/app
 
@@ -30,7 +34,7 @@ services:
       target: jupyter
     image: argelander:jupyter
     init: true
-    environment: *dev-database-url
+    environment: *dev-environment
     # The fixtures are what the prototype notebook reads by default (NEU-1711); the guide
     # notebook writes its figures under docs/guide/figures/ (NEU-1800).
     volumes:
