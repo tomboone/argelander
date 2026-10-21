@@ -569,6 +569,14 @@ class Rule(Protocol):
     def evaluate(self, a: Analysis, t: Target) -> Evidence  # verdict: supports|against|neutral, weight 0..1, explanation: str
 ```
 
+*Amended 2026-10-21 (NEU-1719):* `evaluate` also takes the type code,
+`evaluate(type_code, analysis, target) -> Evidence`, and is called once per code in
+`applies_to`: `Evidence` names the one type it bears on, so a rule that applies to several
+types (a period-range check against each `TypeSpec`) needs to know which it is scoring.
+`Evidence` lives in `classify/rules/base.py` beside the protocol. A tie in Confidence goes
+to a type Gaia's classifier gave (`types.gaia_types`), and a Proposal below
+`types.UNCERTAIN_BELOW` (0.7) is marked uncertain.
+
 `registry.py` lists rules per VSX type (initial set: EW, EA, EB, RRAB, RRC, DSCT, HADS,
 DCEP, SR, L, M, ROT, ELL, and `CST` for "not variable"). All of these are confirmed
 against the revision form's type dropdown captured 2026-10-19
