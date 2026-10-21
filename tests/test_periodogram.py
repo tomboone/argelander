@@ -7,10 +7,18 @@ random times of night over several observing seasons, so the searches face real 
 import dataclasses
 
 import numpy as np
+import pytest
 from astropy.timeseries import LombScargle
 
 from argelander.analysis.clean import MIN_POINTS, clean
-from argelander.analysis.periodogram import lomb_scargle, periodograms
+from argelander.analysis.periodogram import (
+    BLS_COARSEN,
+    BLS_MIN_DUTY_CYCLE,
+    _bls_grid,
+    box_least_squares,
+    lomb_scargle,
+    periodograms,
+)
 from argelander.lightcurve import LightCurve
 
 TOLERANCE = 1e-3  # 0.1 %, the prototype's pass criterion (spec §11)
@@ -95,6 +103,71 @@ def test_bls_finds_narrow_eclipses() -> None:
 
     assert bls.best is not None
     assert relative_error(bls.best.period, period) < TOLERANCE
+
+
+def detached_binary(period: float, width: float, n: int, seasons: int) -> LightCurve:
+    """Eclipsed for `width` of each cycle, with a secondary a fifth as deep, already clean."""
+    rng = np.random.default_rng(1706)
+    time = seasonal_times(rng, n, seasons=seasons)
+    phase = (time / period) % 1.0
+    mag = 15.0 + rng.normal(0, 0.02, time.size)
+    mag[np.abs(phase - 0.3) < width / 2] += 0.7
+    mag[np.abs(phase - 0.8) < width / 2] += 0.14
+    return clean(light_curve(time, mag, 0.02))
+
+
+DETACHED_BINARIES = [(1.3713, 0.08, 600, 5), (2.7183, 0.02, 800, 6)]
+
+
+def test_two_stage_bls_finds_a_minimum_duty_cycle_eclipse() -> None:
+    """The case the coarse pass dilutes most: its true peak ranks 108th there, not first."""
+    period = 3.7
+    bls = box_least_squares(detached_binary(period, BLS_MIN_DUTY_CYCLE, 600, seasons=6))
+
+    assert bls.best is not None
+    assert relative_error(bls.best.period, period) < TOLERANCE
+
+
+@pytest.mark.parametrize(
+    ("period", "width", "n", "seasons"),
+    [*DETACHED_BINARIES, (3.7, BLS_MIN_DUTY_CYCLE, 600, 6)],
+)
+def test_two_stage_bls_matches_the_single_pass(
+    period: float, width: float, n: int, seasons: int
+) -> None:
+    lc = detached_binary(period, width, n, seasons)
+
+    two_stage = box_least_squares(lc)
+    single = box_least_squares(lc, two_stage=False)
+
+    assert two_stage.best is not None and single.best is not None
+    fine = single.frequency
+    steps_apart = np.searchsorted(fine, 1.0 / two_stage.best.period) - np.searchsorted(
+        fine, 1.0 / single.best.period
+    )
+    assert abs(steps_apart) <= 1
+
+
+def test_two_stage_bls_returns_the_coarse_grid_with_refined_peaks() -> None:
+    lc = detached_binary(*DETACHED_BINARIES[1])
+
+    bls = box_least_squares(lc)
+
+    assert np.all(np.diff(bls.frequency) > 0)
+    assert bls.frequency.size == bls.power.size
+    assert bls.frequency.size < _bls_grid(lc.time).size / 4
+    assert len(bls.peaks) == 5
+    assert np.all(np.isin([p.period for p in bls.peaks], 1.0 / bls.frequency))
+
+
+def test_coarse_bls_grid_is_an_eighth_of_the_fine_one() -> None:
+    time = seasonal_times(np.random.default_rng(1706), 800, seasons=6)
+
+    fine, coarse = _bls_grid(time), _bls_grid(time, coarsen=BLS_COARSEN)
+
+    assert BLS_COARSEN == 8
+    assert coarse.size == pytest.approx(fine.size / BLS_COARSEN, rel=0.01)
+    assert coarse[0] == fine[0]
 
 
 def test_eclipses_in_sparse_data_survive_cleaning() -> None:

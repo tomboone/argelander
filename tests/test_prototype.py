@@ -5,8 +5,8 @@ aliases → blend → Agreement → CMD, on its trimmed Light Curves and the Gai
 recorded in `fixtures/catalog/`; `argelander.prototype.judge` applies the criterion. ASAS-SN
 is a coverage gap until NEU-1796, so Agreement rests on ZTF g, ZTF r, TESS and Gaia's period.
 
-BoxLeastSquares over ZTF's 7.5-year baseline takes most of a minute a star, so the stars run
-in parallel, once for the module. The tests that need them are marked `gate`, which CI runs
+BoxLeastSquares over ZTF's 7.5-year baseline is the slow step, so the stars run in parallel,
+once for the module. The tests that need them are marked `gate`, which CI runs
 as its own job, only when the science can have changed (NEU-1838); `task test` runs them.
 """
 
