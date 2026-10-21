@@ -8,11 +8,21 @@ records in the star's `coverage` which bands each survey returned. A survey that
 data for a star records `[]`, the coverage gap. A survey whose fetch fails keeps the
 coverage it had, so ASAS-SN stays `pending` while Sky Patrol is down (NEU-1764).
 
+`--catalog` records the Gaia catalog join for every manifest star instead: the four query
+results as VOTables in `tests/fixtures/catalog/`, from which the prototype gate (NEU-1711)
+rebuilds each star's `GaiaRecord` offline (Gaia's period, neighbours, colour, parallax).
+
+`--measure` fetches without trimming into a temporary Cache, leaves the fixtures and the
+manifest alone, and prints the Parquet bytes per star per survey and the TESS source each
+star used, as a Markdown table: the measurement in spec §14.
+
 Run in the app container, from the repo root:
 
     python scripts/build_fixtures.py                                  # all four surveys
     python scripts/build_fixtures.py --survey ztf --survey tess --survey gaia
     python scripts/build_fixtures.py --survey asassn --star "V0364 Dra"
+    python scripts/build_fixtures.py --catalog
+    python scripts/build_fixtures.py --measure --survey ztf --survey tess --survey gaia
 
 Trimming draws a random subset rather than every n-th point: TESS and Gaia sample on a
 regular cadence, and a regular stride would put a new Nyquist limit on the fixture that the
@@ -25,6 +35,7 @@ import asyncio
 import dataclasses
 import shutil
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -32,7 +43,14 @@ from typing import Any
 import numpy as np
 import yaml
 
-from argelander.catalog.gaia import fetch_catalog
+from argelander.catalog.gaia import (
+    CATALOG_QUERY,
+    CROSS_ID_QUERY,
+    NEIGHBOUR_QUERY,
+    TESS_FIELD_QUERY,
+    fetch_catalog,
+    run_upload_query,
+)
 from argelander.config import get_settings
 from argelander.fetch.asassn import AsassnFetcher
 from argelander.fetch.base import ArchiveLimits, Fetcher, TargetRef
@@ -44,6 +62,14 @@ from argelander.lightcurve import LightCurve, cache_path
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 MANIFEST = FIXTURES / "manifest.yaml"
 LIGHT_CURVES = FIXTURES / "lightcurves"
+CATALOG = FIXTURES / "catalog"
+# The file each catalog query's result is recorded in, in `records_from_tables` order.
+CATALOG_TABLES = {
+    "catalog": CATALOG_QUERY,
+    "cross_ids": CROSS_ID_QUERY,
+    "neighbours": NEIGHBOUR_QUERY,
+    "tess_field": TESS_FIELD_QUERY,
+}
 
 SURVEYS = ("ztf", "tess", "gaia", "asassn")
 MAX_POINTS = 500
@@ -111,14 +137,71 @@ def write_fixtures(survey: str, gaia_source_id: int, curves: Sequence[LightCurve
     return sorted(lc.band for lc in curves)
 
 
+def record_catalog(stars: Sequence[dict[str, Any]]) -> None:
+    """Run the catalog join's four queries for `stars` and write each result to `CATALOG`."""
+    ids = [star["gaia_source_id"] for star in stars]
+    CATALOG.mkdir(exist_ok=True)
+    for name, adql in CATALOG_TABLES.items():
+        table = run_upload_query(adql, ids)
+        table.write(CATALOG / f"{name}.xml", format="votable", overwrite=True)
+        print(f"{name}: {len(table)} rows", flush=True)
+
+
+def measure(stars: Sequence[dict[str, Any]], surveys: Sequence[str]) -> str:
+    """Fetch `stars` untrimmed into a temporary Cache; a Markdown table of the Parquet bytes
+    each star takes per survey, and the TESS source it used."""
+    sizes: dict[int, dict[str, int]] = {star["gaia_source_id"]: {} for star in stars}
+    tess_source: dict[int, str] = {}
+    with tempfile.TemporaryDirectory() as cache:
+
+        def write(survey: str, gaia_source_id: int, curves: Sequence[LightCurve]) -> list[str]:
+            for lc in curves:
+                path = cache_path(Path(cache), survey, gaia_source_id, lc.band)
+                lc.to_parquet(path)
+                sizes[gaia_source_id][survey] = (
+                    sizes[gaia_source_id].get(survey, 0) + path.stat().st_size
+                )
+                if survey == "tess":
+                    tess_source[gaia_source_id] = lc.meta.get("source", "?")
+            return sorted(lc.band for lc in curves)
+
+        failures = asyncio.run(build([dict(s) for s in stars], surveys, write=write))
+    for failure in failures:
+        print(f"FAILED {failure}", file=sys.stderr)
+
+    def kb(n: int | None) -> str:
+        return "–" if n is None else f"{n / 1000:,.0f}"
+
+    lines = [
+        "| Star | G | " + " | ".join(f"{s} kB" for s in surveys) + " | Total kB | TESS source |",
+        "| --- | ---: | " + " | ".join("---:" for _ in surveys) + " | ---: | --- |",
+    ]
+    for star in stars:
+        row = sizes[star["gaia_source_id"]]
+        lines.append(
+            f"| {star['star']} | {star['gaia_g']:.2f} | "
+            + " | ".join(kb(row.get(s)) for s in surveys)
+            + f" | {kb(sum(row.values()))} | {tess_source.get(star['gaia_source_id'], '–')} |"
+        )
+    totals = [sum(row.values()) for row in sizes.values()]
+    lines.append("")
+    lines.append(
+        f"Per star: median {kb(int(np.median(totals)))} kB, max {kb(max(totals))} kB, "
+        f"mean {kb(int(np.mean(totals)))} kB over {len(totals)} stars."
+    )
+    return "\n".join(lines)
+
+
 async def build(
     stars: list[dict[str, Any]],
     surveys: Sequence[str],
     *,
     on_progress: Callable[[], None] = lambda: None,
+    write: Callable[[str, int, Sequence[LightCurve]], list[str]] = write_fixtures,
 ) -> list[str]:
     """Fetch and write every star's fixtures for `surveys`, updating each star's `coverage`
-    in place; the failures, one line each.
+    in place; the failures, one line each. `write` stores one star's curves for one survey
+    and returns the bands written; by default it writes trimmed fixtures.
 
     The surveys run at once, each under its own archive's semaphore, and each star is
     written as soon as its fetch returns, followed by a call to `on_progress`: a fetch of
@@ -162,7 +245,7 @@ async def build(
             failures.append(f"{star['star']} {survey}: {result!r}")
             print(f"FAILED {failures[-1]}", file=sys.__stderr__, flush=True)
             return
-        star["coverage"][survey] = write_fixtures(survey, star["gaia_source_id"], result)
+        star["coverage"][survey] = write(survey, star["gaia_source_id"], result)
         coverage = star["coverage"][survey] or "no data"
         print(f"{star['star']} {survey}: {coverage}", file=sys.__stdout__, flush=True)
         on_progress()
@@ -208,6 +291,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--star", action="append", help="a manifest star to fetch; repeat for several"
     )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--catalog", action="store_true", help="record the Gaia catalog join for every star"
+    )
+    mode.add_argument(
+        "--measure",
+        action="store_true",
+        help="print untrimmed Parquet sizes per star; writes no fixtures",
+    )
     args = parser.parse_args(argv)
     surveys = args.survey or list(SURVEYS)
 
@@ -216,6 +308,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     unknown = set(args.star or ()) - {s["star"] for s in stars}
     if unknown:
         parser.error(f"not in the manifest: {', '.join(sorted(unknown))}")
+    if args.catalog:
+        if args.star:
+            parser.error("--catalog records the whole manifest; drop --star")
+        record_catalog(stars)
+        return 0
+    if args.measure:
+        print(measure(selected, surveys))
+        return 0
 
     failures = asyncio.run(
         build(selected, surveys, on_progress=lambda: write_manifest(header, stars))

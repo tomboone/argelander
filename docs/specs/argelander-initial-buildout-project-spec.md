@@ -87,7 +87,9 @@ src/argelander/
     agreement.py       the Agreement rule
     blend.py           Gaia neighbours within a few arcsec
     cmd.py             colour-magnitude position from Gaia colour + parallax
+    pipeline.py        analyze(): steps 3–8 for one Target, shared by the worker and the prototype
     worker.py          analyze-worker loop (writes Analysis, then runs classify + plots)
+  prototype.py         the prototype gate's pass criterion, shared by its test and the notebook
   classify/
     types.py           VSX type codes and definitions used by rules
     rules/             one module per rule; each a Rule subclass
@@ -338,6 +340,20 @@ Order of operations in `analysis/worker.py` for one Target:
    When two periods tie, no period is agreed. A 2:1 Agreement takes the longer period, the
    one that separates an eclipsing binary's two eclipses, and the classifier sees the
    relation. The agreed period is the mean of the votes at that scale.
+
+   *Amended 2026-10-20 (NEU-1711):* the prototype gate failed five of its 27 stars on two
+   rules, both now changed. First, the tolerance is 0.1 % or P / baseline, whichever is
+   wider, each pair of votes judged at the shorter of their two baselines: a periodogram peak is about 1 / baseline wide, so over ZTF's 7.5 years a
+   40 d period is resolved only to 1.5 %, and the same peak found by ZTF g and r came out
+   0.10–0.17 % apart. Gaia's published period counts with Gaia DR3's 1,038-day baseline, and
+   the Agreement records the tolerance it used, from the shortest baseline among its votes.
+   Below about 2.7 d nothing changes. Second, a band does not vote when its best fold's
+   phase dispersion is above 0.75: on two of the three constant stars, ZTF g and r both
+   settled on the sidereal half-day, folding at 0.82–0.97, and agreed on it. Every voting
+   band of a positive folded at 0.71 or less. The threshold is set on those 27 stars, so
+   the margin is thin. The fifth failure, a ROT star at 12.09 d, stays a strict xfail: ZTF's
+   oid zero-point flag (`blend_suspect`, NEU-1798) and `tess_contaminated` leave every source
+   at half weight.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
@@ -580,6 +596,18 @@ from the grilling session:
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.
+
+  *Amended 2026-10-20 (NEU-1711):* `tests/test_prototype.py` runs the pipeline
+  (`analysis/pipeline.py`) on every manifest star and `argelander.prototype.judge` applies
+  the criterion, which the notebook shares. A positive's agreed period matches the published
+  one within the Agreement's own tolerance (§6 step 6), or at twice or half it, recorded as
+  `2:1`. An alias trap reaches no Agreement at its published period, and when it reaches one,
+  it is at the true period. A blend or constant star reaches no Agreement or is flagged
+  `blend_suspect`. Gaia's period, the neighbours and the CMD inputs come from the catalog
+  join recorded in `tests/fixtures/catalog/` (`scripts/build_fixtures.py --catalog`). A star
+  the pipeline is known to fail is a strict xfail with its reason, so it shows in the run
+  and the entry has to go when it starts passing. The stars run in parallel because BLS over
+  ZTF's baseline takes most of a minute each.
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
@@ -634,5 +662,69 @@ lands through a PR.
 
 - TESS source per star (QLP vs TGLC vs cutout) by magnitude.
 - Real per-star Cache size (handover estimates 0.5–1.5 MB).
+
+*Resolved 2026-10-20 (NEU-1711)*, from an untrimmed fetch of the 27 fixture stars
+(`python scripts/build_fixtures.py --measure --survey ztf --survey tess --survey gaia`; ASAS-SN
+was still down, NEU-1764):
+
+**TESS source.** QLP for 12 stars, a TESScut cutout for 14, SPOC for one, TGLC for none. It
+follows magnitude loosely: 10 of the 12 QLP stars are brighter than G 14, and 13 of the 14
+cutout stars are G 14.3 or fainter, but QLP also covers two stars at G 14.5 and 15.7 and a
+cutout serves one at 13.8. What decides it is whether a prebuilt light curve exists for the
+star, so the fetcher keeps choosing per star by availability (prebuilt first, cutout last)
+rather than by a magnitude rule.
+
+**Per-star size.** Median 16.0 MB, mean 13.6 MB, largest 18.3 MB, of which TESS is 99 %: ZTF
+takes 9–200 kB a star and Gaia epoch photometry about 10 kB. That is 10–30 times the
+handover's 0.5–1.5 MB. A TESS Light Curve stitched from every sector runs to 25,000–255,000
+points, and `meta["sap"]`, the SAP flux kept for the PDCSAP comparison (§5.1), is written as a
+JSON list in the Parquet file metadata. On a constructed 250,000-point Light Curve the four
+columns take 6.5 MB and the SAP list another 11.5 MB, 64 % of the file.
+
+Against the handover's storage table (without cutouts):
+
+| Scope | Stars | Handover | Measured, at 13.6 MB a star |
+| --- | ---: | ---: | ---: |
+| Prototype | 20–27 | ~20 MB | 370 MB for the 27 |
+| Realistic first year | 5k–20k | 5–30 GB | 70–270 GB |
+| Whole Gaia VAR backlog | ~166k | 80–250 GB | ~2.3 TB |
+
+The first year still fits on the 2 TB SSD; the whole backlog does not. Storing the SAP flux
+as a Parquet column instead of in the metadata would take a 250,000-point TESS file from
+18 MB to about 8.5 MB, roughly halving the Cache and bringing the backlog to about 1.1–1.4 TB,
+before any change to precision or cadence. That is NEU-1799, not part of this measurement.
+
+Per star and survey, in kB:
+
+| Star | G | ztf kB | tess kB | gaia kB | Total kB | TESS source |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| NSVS 2887379 | 13.91 | 116 | 15,008 | 9 | 15,132 | QLP |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 44 | 18,087 | 8 | 18,138 | TESScut |
+| LINEAR 20427289 | 15.34 | 106 | 12,676 | 8 | 12,791 | TESScut |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 98 | 9,187 | 11 | 9,296 | SPOC |
+| DW Dra | 13.04 | 111 | 17,183 | 8 | 17,302 | QLP |
+| T-Dra0-09947 | 15.08 | 121 | 9,817 | 9 | 9,947 | TESScut |
+| 1SWASP J191601.56+560055.3 | 13.60 | 62 | 12,607 | 9 | 12,678 | QLP |
+| CSS_J173907.6+550053 | 14.69 | 80 | 17,327 | 9 | 17,417 | TESScut |
+| V0364 Dra | 14.85 | 105 | 8,461 | 9 | 8,575 | TESScut |
+| V0502 Dra | 14.92 | 138 | 16,349 | 9 | 16,496 | TESScut |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 55 | 18,005 | 8 | 18,068 | TESScut |
+| V0379 Dra | 13.33 | 188 | 14,426 | 9 | 14,623 | QLP |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 199 | 17,079 | 12 | 17,290 | TESScut |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 114 | 16,968 | 9 | 17,092 | QLP |
+| V0553 Dra | 13.78 | 62 | 17,663 | 12 | 17,736 | TESScut |
+| KO Cep | 13.06 | 60 | 4,644 | 10 | 4,714 | QLP |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 45 | 14,548 | 9 | 14,603 | QLP |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 45 | 17,205 | – | 17,250 | QLP |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 98 | 17,744 | – | 17,842 | TESScut |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 106 | 18,224 | 9 | 18,338 | TESScut |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 79 | 5,737 | 9 | 5,825 | TESScut |
+| CSS_J181701.4+514940 | 14.41 | 156 | 9,757 | 9 | 9,922 | TESScut |
+| CSS_J160212.7+530724 | 15.70 | 81 | 1,893 | – | 1,974 | QLP |
+| CSS_J172350.6+504650 | 14.48 | 86 | 4,453 | – | 4,539 | QLP |
+| Gaia DR3 1435854639894380800 | 13.66 | 99 | 16,285 | – | 16,384 | QLP |
+| Gaia DR3 1434111643382583936 | 13.96 | 112 | 15,931 | – | 16,043 | QLP |
+| Gaia DR3 1435683567052954368 | 15.01 | 9 | 18,212 | – | 18,221 | TESScut |
+
 - Whether ASAS-SN g or V is more useful at 13–16 mag.
 - The Draco VAR Target count at 13–16 mag (one VizieR query before milestone 4).

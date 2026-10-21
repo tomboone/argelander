@@ -70,6 +70,7 @@ def alias_test(lc: LightCurve, periods: Iterable[float]) -> AliasTest:
         survey=lc.survey,
         band=lc.band,
         ranking=tuple(sorted(hypotheses, key=lambda h: h.score)),
+        baseline=float(lc.time.max() - lc.time.min()),
     )
 
 

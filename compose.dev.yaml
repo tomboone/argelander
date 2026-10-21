@@ -31,10 +31,12 @@ services:
     image: argelander:jupyter
     init: true
     environment: *dev-database-url
+    # The fixtures are what the prototype notebook reads by default (NEU-1711).
     volumes:
       - ./notebooks:/app/notebooks
       - ./src:/app/src
       - ./data:/app/data
+      - ./tests/fixtures:/app/tests/fixtures:ro
     ports:
       - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
     depends_on:

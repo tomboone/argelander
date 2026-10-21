@@ -129,3 +129,11 @@ def cache_path(cache_dir: Path, survey: str, gaia_source_id: int, band: str) -> 
     `{cache_dir}/{survey}/{gaia_source_id}/{band}.parquet`
     """
     return cache_dir / survey / str(gaia_source_id) / f"{band}.parquet"
+
+
+def load_target(cache_dir: Path, gaia_source_id: int) -> list[LightCurve]:
+    """Every Light Curve the Cache holds for one Target, ordered by survey then band."""
+    return [
+        LightCurve.from_parquet(path)
+        for path in sorted(cache_dir.glob(f"*/{gaia_source_id}/*.parquet"))
+    ]
