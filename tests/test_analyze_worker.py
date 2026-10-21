@@ -498,7 +498,9 @@ def test_classify_replot_rewrites_the_plots_and_analyses_plots(
 def test_classify_without_replot_is_refused() -> None:
     refused = runner.invoke(app, ["classify"])
     assert refused.exit_code == 2
-    assert "--replot" in refused.output
+    # A phrase from the head of the message: on GitHub Actions Rich colours option names
+    # such as --replot and wraps the panel, so the tail of the line can split.
+    assert "proposes as it analyses" in refused.output
 
 
 def test_a_target_without_ok_light_curves_fails_its_job(
