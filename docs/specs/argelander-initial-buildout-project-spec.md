@@ -63,7 +63,9 @@ Four are automated (target selector, fetcher, analyzer, classifier+plots); two a
 src/argelander/
   __init__.py          PIPELINE_VERSION = "0.1.0"  (bumped whenever rules or analysis change)
   config.py            pydantic-settings: DATABASE_URL, CACHE_DIR, PLOTS_DIR, ASTRO_CACHE_DIR, archive limits
-  cli.py               typer app: select-slice, fetch-worker, analyze-worker, classify, enqueue, web, db-upgrade
+  cli.py               typer app: select-slice, fetch-worker, analyze-worker, classify, enqueue, status,
+                       recompute-status, web, db-upgrade
+  status.py            Target status derived from Jobs and Proposals; recompute, counts, re-queue (NEU-1722)
   db/
     models.py          SQLAlchemy 2 declarative models (section 4)
     session.py         sync engine/session for workers, async engine/session for FastAPI (psycopg 3)
@@ -223,6 +225,25 @@ and Proposal. A stored `status` column on `targets` is a cache updated by the wo
 (`selected` → `fetching` → `fetched` → `analyzed` → `proposed` → `reviewed` →
 `submitted` → `accepted`/`rejected`, plus `failed`), and may be recomputed from the other
 tables by a CLI command.
+
+*Amended 2026-10-21 (NEU-1722):* the rule is `status.derive` (`argelander/status.py`), and
+`argelander recompute-status` rewrites the column from it. The Job that decides is the Target's
+newest pending or claimed Job, or else its newest. A `failed` one makes the Target `failed`; a
+pending or claimed analyze Job leaves it `fetched`; a claimed fetch Job, or a pending one
+already tried, is `fetching`, and one never tried is `selected`, as is a Target with no Job; a
+`done` fetch Job is `fetched`. After a `done` analyze Job the newest Proposal decides:
+`proposed`, then `reviewed` once it has a Review or is approved or rejected, then its newest
+Submission's status (`prepared` is still `reviewed`, `needs_changes` is `submitted`). The
+workers write the same answers, so a clean run recomputes to no change; the one place they
+differ is a crash leftover, a fetch claim released as stale (`selected`, where the worker left
+`fetching`). `argelander enqueue <fetch|analyze>` re-queues by `--target` (VSX name) or
+`--slice` (name, every `slices` row of it; a Slice's Targets are the ones it selected first,
+§4 NEU-1716), narrowed or, alone, extended to every Slice by `--failed` (the newest Job of
+that kind failed for good). It skips a Target with a Job of *either* kind pending or claimed,
+since `queue.enqueue` keeps one active Job per kind only: a fetch queued beside a waiting
+analyze Job would finish without queueing its own analysis. It recomputes the status of every
+Target it names.
+`argelander status [--slice]` counts Targets per status and Jobs per kind and status.
 
 **Rerun semantics** (grilling decision): a rerun under a new Pipeline Version inserts a new
 `analyses` row and a new `proposals` row. Any older Proposal for the same Target with
@@ -870,6 +891,10 @@ from the grilling session:
   USB SSD. Memory limits: postgres 1 GB, analyzer 3 GB, fetcher 1 GB, api 512 MB.
 - `compose.dev.yaml` adds `jupyter` (same image plus jupyterlab, mounts `notebooks/` and
   the cache) and exposes postgres on localhost; dev runs through `task up`.
+  *Amended 2026-10-21 (NEU-1722):* it also has `fetcher` and `analyzer`, on the `app` image
+  and mount, behind the `workers` profile, so `task up` leaves them stopped and `task workers`
+  starts them (`docs/runbook.md`). When NEU-1723 adds prod services of the same names to
+  `compose.yaml`, these entries become their dev overrides.
 - `backup`: an image with `postgresql-client` and `restic`, run by supercronic at 03:30
   local: `pg_dump | restic backup --stdin --stdin-filename argelander.sql` to a B2 bucket,
   then `restic forget --keep-daily 14 --keep-weekly 8 --prune`. A documented restore drill

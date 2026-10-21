@@ -28,6 +28,34 @@ services:
     volumes:
       - .:/app
 
+  # The two workers, on the app image and the same mount, so `data/cache` and `data/plots`
+  # are the repo's. Opt-in through the `workers` profile (`task workers`): `task up` leaves
+  # them stopped, so nothing fetches until a run is meant. They do not reload on edits;
+  # restart them (`task workers`) to pick up a change.
+  fetcher:
+    image: argelander:dev
+    init: true
+    profiles: [workers]
+    command: ["argelander", "fetch-worker"]
+    environment: *dev-environment
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analyzer:
+    image: argelander:dev
+    init: true
+    profiles: [workers]
+    command: ["argelander", "analyze-worker"]
+    environment: *dev-environment
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   jupyter:
     build:
       context: .
