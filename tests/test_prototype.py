@@ -7,7 +7,8 @@ is a coverage gap until NEU-1796, so Agreement rests on ZTF g, ZTF r, TESS and G
 
 The classifier's rules (NEU-1720) are held to the same set: at least `MIN_CLASSIFIED` of the 20
 positives get their published type as the best-scoring type, and a blend or constant star
-scores "not variable" or no type above 0.5.
+scores "not variable" or no type above 0.5. Their Proposals (NEU-1721) read the rise or
+eclipse duration, the range and the epoch off the binned phase curve as VSX asks.
 
 BoxLeastSquares over ZTF's 7.5-year baseline is the slow step, so the stars run in parallel,
 once for the module. The tests that need them are marked `gate`, which CI runs
@@ -18,19 +19,23 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import numpy as np
 import pytest
 import yaml
 from astropy.table import Table
 
 from argelander.analysis.model import Agreement, Analysis, Blend, Contamination
 from argelander.analysis.pipeline import analyze
+from argelander.analysis.shape import magnitudes
 from argelander.catalog.gaia import GaiaRecord, records_from_tables
 from argelander.classify import registry, types
 from argelander.classify.confidence import best_type, scores
+from argelander.classify.propose import Elements, elements, range_curve
 from argelander.classify.rules.gaia import target_gaia_types
 from argelander.db.models import Target
 from argelander.lightcurve import LightCurve, load_target
 from argelander.plots import render_all
+from argelander.plots.phase import MAX_BINS, MIN_BINS, POINTS_PER_BIN, binned_median, fold
 from argelander.prototype import judge, relation
 from argelander.selector import gaia_columns
 
@@ -86,11 +91,15 @@ def gate_case(star: dict, known: dict[str, str] = KNOWN_FAILURES) -> object:
     return pytest.param(star, id=star["star"], marks=marks)
 
 
-def classified(star: dict, analysis: Analysis) -> tuple[str | None, dict[str, float]]:
-    """The best-scoring type for `star`, and every type's Confidence."""
-    target = Target(
+def target_of(star: dict) -> Target:
+    return Target(
         gaia_source_id=star["gaia_source_id"], **gaia_columns(catalog()[star["gaia_source_id"]])
     )
+
+
+def classified(star: dict, analysis: Analysis) -> tuple[str | None, dict[str, float]]:
+    """The best-scoring type for `star`, and every type's Confidence."""
+    target = target_of(star)
     scored = scores(registry.evaluate(analysis, target))
     return best_type(scored, target_gaia_types(target)), scored
 
@@ -149,6 +158,70 @@ def test_alias_trap_keeps_its_type_at_the_true_period(star: dict, analyses: dict
     analysis, _ = analyses[star["star"]]
     proposed, scored = classified(star, analysis)
     assert proposed == star["published_type"], scored
+
+
+def proposal_of(star: dict, analyses: dict) -> tuple[Elements, LightCurve]:
+    """`star`'s Proposal and the band its range and epoch were read from."""
+    analysis, cleaned = analyses[star["star"]]
+    found, lead = elements(analysis, cleaned, target_of(star)), range_curve(cleaned)
+    assert found.proposed_type == star["published_type"], found.proposed_type
+    assert lead is not None
+    return found, lead
+
+
+def positives(*codes: str) -> list[dict]:
+    """The positives of the given types the classifier names correctly."""
+    return [
+        s
+        for s in STARS
+        if s["role"] == "positive"
+        and s["published_type"] in codes
+        and s["star"] not in KNOWN_MISCLASSIFIED
+    ]
+
+
+# The form's rise/eclipse duration, % of the period: EA's primary eclipse, an RR Lyrae's rise,
+# and nothing for EW, whose light changes continuously (VSX Manual).
+DURATION_PCT = {"EA": (1.0, 30.0), "RRAB": (10.0, 40.0), "EW": None}
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize("star", positives(*DURATION_PCT), ids=lambda s: s["star"])
+def test_proposal_rise_or_eclipse_duration(star: dict, analyses: dict) -> None:
+    found, _ = proposal_of(star, analyses)
+    expected = DURATION_PCT[star["published_type"]]
+    if expected is None:
+        assert found.rise_or_eclipse is None
+    else:
+        assert found.rise_or_eclipse is not None
+        assert expected[0] <= 100 * found.rise_or_eclipse <= expected[1]
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize("star", positives("RRAB"), ids=lambda s: s["star"])
+def test_proposal_range_is_the_binned_curve_not_its_extreme_points(
+    star: dict, analyses: dict
+) -> None:
+    found, lead = proposal_of(star, analyses)
+    _, mag, _ = magnitudes(lead)
+    assert found.mag_max is not None and found.mag_min is not None
+    assert mag.min() < found.mag_max < np.median(mag) < found.mag_min < mag.max()
+    assert found.band == lead.band and not found.min_is_amplitude
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize("star", positives("EA"), ids=lambda s: s["star"])
+def test_proposal_epoch_is_at_primary_minimum(star: dict, analyses: dict) -> None:
+    """Folded at the Proposal's period and epoch, the binned curve's faintest bin is the
+    one that starts or ends at phase 0: the epoch is the faintest bin's centre, and re-cutting
+    the fold there moves the bin edges by half a bin."""
+    found, lead = proposal_of(star, analyses)
+    assert found.period is not None and found.epoch_bjd is not None
+    time, mag, _ = magnitudes(lead)
+    centres, medians = binned_median(fold(time, found.period, found.epoch_bjd), mag)
+    width = 1.0 / int(np.clip(mag.size // POINTS_PER_BIN, MIN_BINS, MAX_BINS))
+    faintest = float(centres[medians.argmax()])
+    assert min(faintest, 1.0 - faintest) == pytest.approx(width / 2)
 
 
 @pytest.mark.gate

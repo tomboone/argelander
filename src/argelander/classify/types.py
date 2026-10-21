@@ -72,6 +72,22 @@ UNSPECIFIED = "VAR"
 # checkbox, VSX's `:` suffix.
 UNCERTAIN_BELOW = 0.7
 
+# Types whose mean level or amplitude changes between cycles (VSX FAQ, Magnitude range):
+# their range is the brightest and faintest recorded cycles, not the binned phase curve, and
+# they carry no epoch unless the Agreement is strong (spec §7, Epoch convention).
+CYCLE_TO_CYCLE_TYPES = frozenset({"SR", "M", "L"})
+# A strong Agreement: at least this many sources found the period, one more than Agreement
+# needs. Asserted, not measured on the fixtures.
+STRONG_AGREEMENT_SOURCES = 3
+# A cycle's magnitude at maximum and minimum light are these percentiles of its points, which
+# stand for the means near either extreme without letting one stray point set them; a cycle
+# with fewer points is not read.
+CYCLE_PERCENTILES = (10.0, 90.0)
+CYCLE_MIN_POINTS = 10
+# Without a period there is no phase curve to read, and the range is these percentiles of the
+# band, the spread `variability` measures.
+APERIODIC_PERCENTILES = (5.0, 95.0)
+
 SecondaryMinimum = Literal["absent-ok", "required-shallower", "equal"]
 ColourHint = Literal["blue", "intermediate", "red", "any"]
 EpochAt = Literal["max", "min", "none"]

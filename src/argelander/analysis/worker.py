@@ -9,10 +9,11 @@ analysed outside any transaction (`pipeline.analyze`, steps 3–8), with the Gai
 
 The result is written in one transaction (step 9): the `analyses` row upserted on
 `(target_id, pipeline_version)`, so a rerun at the same Pipeline Version overwrites the row
-and a new version adds one; the Target moved to `analyzed`; the hand-off to the classifier
-and the plots; the Job completed. A Target without an `ok` Light Curve, or any error on the
-way, fails the Job through `queue.fail`, which returns it to `pending` until it has used its
-`max_attempts`, and then fails the Target too.
+and a new version adds one; the hand-off, in which `classify.propose` writes the Proposal,
+moves the Target to `proposed` and draws the plots under `PLOTS_DIR`; the Job completed. A
+Target without an `ok` Light Curve, or any error on the way, fails the Job through
+`queue.fail`, which returns it to `pending` until it has used its `max_attempts`, and then
+fails the Target too.
 """
 
 import logging
@@ -31,6 +32,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from argelander.analysis.model import AliasTest, Analysis, PeriodogramResult
 from argelander.analysis.pipeline import analyze
+from argelander.classify.propose import propose
 from argelander.config import Settings
 from argelander.db import queue
 from argelander.db.models import (
@@ -75,15 +77,16 @@ def record(
     cleaned: list[LightCurve],
     files: Sequence[LightCurveFile],
     started_at: datetime,
+    plots_dir: Path,
 ) -> None:
-    """Write one Analysis, move its Target to `analyzed`, hand off and complete the Job.
+    """Write one Analysis, hand off to the classifier and the plots, and complete the Job.
 
     Works inside the caller's transaction and does not commit.
     """
     columns = analysis_columns(analysis, files) | {
         "started_at": started_at,
         "finished_at": datetime.now(UTC),
-        "plots": None,  # a same-version rerun redraws them in the hand-off
+        "plots": None,  # the hand-off draws them again
     }
     statement = insert(AnalysisRow).values(
         target_id=analysis.target_id, pipeline_version=analysis.pipeline_version, **columns
@@ -95,18 +98,22 @@ def record(
         ).returning(AnalysisRow)
     ).one()
     target.status = TargetStatus.ANALYZED
-    hand_off(session, row, analysis, cleaned)
+    hand_off(session, row, target, analysis, cleaned, plots_dir)
     queue.complete(job)
 
 
 def hand_off(
-    session: Session, row: AnalysisRow, analysis: Analysis, cleaned: list[LightCurve]
+    session: Session,
+    row: AnalysisRow,
+    target: Target,
+    analysis: Analysis,
+    cleaned: list[LightCurve],
+    plots_dir: Path,
 ) -> None:
     """Spec §6 step 9's hand-off, in the Analysis's transaction: `classify.propose()` makes
-    the Proposal and `plots.render_all()` draws its evidence into `row.plots`.
-
-    NEU-1721 fills this in; until then an analysed Target waits at `analyzed`.
+    the Proposal, moves the Target on to `proposed` and draws its evidence into `row.plots`.
     """
+    propose(session, row, analysis, cleaned, target, plots_dir)
 
 
 def analysis_columns(analysis: Analysis, files: Sequence[LightCurveFile]) -> dict[str, Any]:
@@ -139,9 +146,9 @@ def analysis_columns(analysis: Analysis, files: Sequence[LightCurveFile]) -> dic
     }
 
 
-def run_once(sessions: sessionmaker[Session], cache_dir: Path) -> bool:
+def run_once(sessions: sessionmaker[Session], cache_dir: Path, plots_dir: Path) -> bool:
     """One pass: release stale claims, claim one analyze Job, analyse its Target and record
-    it. False when the queue had none."""
+    it, its Proposal and its plots. False when the queue had none."""
     with sessions.begin() as session:
         released = queue.release_stale(session)
         if released:
@@ -175,6 +182,7 @@ def run_once(sessions: sessionmaker[Session], cache_dir: Path) -> bool:
                 cleaned,
                 files,
                 started_at,
+                plots_dir,
             )
     except Exception as error:
         logger.exception("analyze Job %d for %s failed", job_id, target.vsx_name)
@@ -194,7 +202,7 @@ def run(settings: Settings, sessions: sessionmaker[Session]) -> NoReturn:
     waits."""
     while True:
         try:
-            claimed = run_once(sessions, settings.cache_dir)
+            claimed = run_once(sessions, settings.cache_dir, settings.plots_dir)
         except Exception:
             # Postgres restarting, say. A claim already made waits for release_stale; the
             # service outlives the blip instead of exiting on it.

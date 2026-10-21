@@ -47,6 +47,8 @@ BLS_MIN_DUTY_CYCLE = 0.01  # the narrowest eclipse searched for, as a fraction o
 BLS_COARSEN = BLS_DURATIONS[-1] / BLS_DURATIONS[0]  # coarse pass's step, in fine steps
 BLS_REFINE_PEAKS = 500  # coarse peaks re-searched at the fine step (spec §6 step 4)
 BLS_REFINE_HALF_WIDTH = 2  # coarse steps either side of a peak that are re-searched
+# Box widths, as fractions of the period, that `eclipse_duration` fits at one known period.
+ECLIPSE_DUTY_CYCLES = np.geomspace(0.005, 0.3, 40)
 
 
 def periodograms(
@@ -138,6 +140,21 @@ def box_least_squares(
         gaia=gaia,
         insufficient=False,
     )
+
+
+def eclipse_duration(lc: LightCurve, period: float) -> float | None:
+    """The primary eclipse's duration as a fraction of `period`: the box BLS fits best when
+    folded at that one period, over boxes from 0.5 % to 30 % of it (`ECLIPSE_DUTY_CYCLES`).
+    None when the band has too few points.
+
+    The search's own boxes stop at `BLS_DURATIONS[-1]`, two hours, which is a sliver of a
+    long-period eclipse, so the duration is fitted again at the Proposal period.
+    """
+    if not sufficient(lc):
+        return None
+    y = -lc.value if lc.value_kind == "mag" else lc.value
+    fit = BoxLeastSquares(lc.time, y, lc.error).power([period], ECLIPSE_DUTY_CYCLES * period)
+    return float(np.asarray(fit.duration)[0]) / period
 
 
 def _refine(
