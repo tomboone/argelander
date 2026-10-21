@@ -9,7 +9,7 @@ prebuilt covers the Target are cutouts made; always cutting out, for uniformity,
 as too slow and too large.
 
 Each pipeline's systematics-corrected flux becomes `value` and its raw aperture flux is kept
-in `meta["sap"]`, point for point, because VSX warns that PDCSAP sometimes removes real
+in `LightCurve.sap`, point for point, because VSX warns that PDCSAP sometimes removes real
 features or mean-level changes; the analyzer falls back to SAP when it has. Only SPOC's
 PDCSAP is a correction of that kind. QLP's KSPSAP and TGLC's `cal_*` fluxes are detrended
 (high-pass filtered), which would erase most variable-star signals, so QLP's `value` is its
@@ -191,7 +191,7 @@ def light_curve_from_cutouts(
     cutouts: Sequence[Any], *, tess_field: TessField | None, fetched_at: str
 ) -> LightCurve | None:
     """Simple aperture photometry on each sector's cutout, stitched into one Light Curve;
-    None if no cadence is good. `value` and `meta["sap"]` hold the same flux."""
+    None if no cadence is good. `value` and `sap` hold the same flux."""
     # A cutout has no survey-native id; it is named by where it was centred.
     centres = sorted({f"{CUTOUT_SOURCE} {cutout.ra:.6f} {cutout.dec:+.6f}" for cutout in cutouts})
     return _stitch(
@@ -310,13 +310,13 @@ def _stitch(
             # Sectors downloaded but left out: no quality-0 cadence, or no positive median.
             "dropped_sectors": dropped,
             **columns,
-            # Raw aperture flux, aligned point for point with `value`, normalised the same way.
-            "sap": np.concatenate(saps)[order].tolist(),
             "normalisation": "each sector divided by its own median",
             "tess_field": asdict(tess_field) if tess_field is not None else None,
             "time_system": f"BTJD (BJD_TDB - {TESS_BTJD_ZERO})",
             "fetched_at": fetched_at,
         },
+        # Raw aperture flux, aligned point for point with `value`, normalised the same way.
+        sap=np.concatenate(saps)[order],
     )
 
 

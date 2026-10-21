@@ -229,6 +229,19 @@ column reads back `oid=None`, so files written before it still load. `clean()` a
 fixture trim subset it with the four arrays. NEU-1799 adds TESS's `sap` in the same shape:
 an optional per-point column, not a list in `meta`, which `clean()` does not subset.
 
+*Amended 2026-10-21 (NEU-1799):* `LightCurve` gains a second optional last field, `sap:
+np.ndarray | None = None`, the float64 SAP flux of each point, normalised like `value` and
+kept for the PDCSAP comparison (§5.1). TESS fills it; the other surveys leave it `None`. It
+was a JSON list in `meta["sap"]`, which took 64 % of a large TESS file and fell out of step
+with the arrays after `clean()`, which subsets the arrays but copies `meta` whole. It is now a
+Parquet column after `oid`, written when present; a Cache file without the column reads back
+`sap=None`, so files written before it still load. A pre-amendment TESS file would keep its
+old list in `meta`, which nothing reads, and so lose its SAP until re-fetched; none exist
+outside the fixtures, because the fetch worker (NEU-1717) comes after this change. `clean()` and the fixture trim subset it with the
+other arrays. The TESS fixtures were migrated in place, the list moved into the column, not
+re-fetched: their four arrays are byte-for-byte unchanged and the prototype gate's results
+are identical.
+
 Fetchers convert archive output to `LightCurve` at the boundary. Raw TESS cutouts are
 deleted in the same job that extracted the light curve.
 
@@ -265,6 +278,9 @@ deleted in the same job that extracted the light curve.
   author's sectors are the only ones kept, so `meta["source"]` names one pipeline per
   Target. Prebuilt products are downloaded to the same temporary directory as cutouts and
   deleted with it.
+
+  *Amended 2026-10-21 (NEU-1799):* the SAP flux this paragraph puts in `meta["sap"]` is the
+  `LightCurve.sap` column instead (§5); `meta["sap_column"]` still names its source column.
 - **Gaia DR3 epoch photometry** (DataLink, `Gaia.load_data(..., retrieval_type=
   "EPOCH_PHOTOMETRY")`): G, BP, RP per transit; drop `rejected_by_photometry` and
   `rejected_by_variability`. Fetched per Slice in batches of IDs, not per star.

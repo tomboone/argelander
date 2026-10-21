@@ -138,7 +138,7 @@ def test_qlp_value_is_sap_flux_because_kspsap_is_high_pass_filtered() -> None:
     (lc,) = fetch(qlp_fetcher())
 
     assert lc.meta["flux_column"] == lc.meta["sap_column"] == "sap_flux"
-    np.testing.assert_array_equal(lc.meta["sap"], lc.value)
+    np.testing.assert_array_equal(lc.sap, lc.value)
 
 
 def synthetic_product(author: str, sector: int, n: int = 6) -> Any:
@@ -182,8 +182,9 @@ def test_value_is_the_corrected_flux_and_sap_the_raw_one(
         [np.asarray(p[sap_column]) / np.median(np.asarray(p[sap_column])) for p in products]
     )
     np.testing.assert_allclose(lc.value, expected_value, rtol=1e-12)
-    np.testing.assert_allclose(lc.meta["sap"], expected_sap, rtol=1e-12)
-    assert not np.allclose(lc.value, lc.meta["sap"])
+    assert lc.sap is not None
+    np.testing.assert_allclose(lc.sap, expected_sap, rtol=1e-12)
+    assert not np.allclose(lc.value, lc.sap)
 
 
 def test_qlp_from_sector_56_takes_its_error_from_the_renamed_det_columns() -> None:
@@ -220,8 +221,9 @@ def test_both_flux_columns_survive_the_parquet_round_trip(tmp_path: Path) -> Non
 
     assert back == lc
     np.testing.assert_array_equal(back.value, lc.value)
-    np.testing.assert_array_equal(back.meta["sap"], lc.meta["sap"])
-    assert len(back.meta["sap"]) == len(back.value)
+    assert back.sap is not None
+    np.testing.assert_array_equal(back.sap, lc.sap)
+    assert "sap" not in back.meta
 
 
 def test_products_from_two_authors_are_refused() -> None:
@@ -386,7 +388,7 @@ def test_without_a_prebuilt_product_a_cutout_light_curve_is_extracted() -> None:
     assert len(lc.time) == len(fits.getdata(CUTOUT_FILE, 1))
     assert np.median(lc.value) == pytest.approx(1.0)
     assert np.all(np.isfinite(lc.error)) and np.all(lc.error > 0)
-    np.testing.assert_array_equal(lc.meta["sap"], lc.value)
+    np.testing.assert_array_equal(lc.sap, lc.value)
     # An RRab varies by tens of percent; a misplaced aperture on sky would not.
     assert np.ptp(lc.value) > 0.2
 
@@ -482,6 +484,7 @@ def test_live_fetch_returns_a_prebuilt_light_curve_and_records_its_source() -> N
     assert lc.meta["source"] in AUTHORS
     assert lc.meta["source"] == "QLP"  # the only preferred author covering it on 2026-10-19
     assert len(lc.meta["sectors"]) > 2
-    assert len(lc.time) == len(lc.meta["sap"]) > 1000
+    assert lc.sap is not None
+    assert len(lc.time) == len(lc.sap) > 1000
     # BJD_TDB, not BTJD: TESS began observing in 2018 (JD 2458325).
     assert lc.time[0] > 2458300.0

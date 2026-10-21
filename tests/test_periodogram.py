@@ -215,6 +215,25 @@ def test_cleaning_keeps_each_surviving_points_oid() -> None:
     np.testing.assert_array_equal(cleaned.oid, oid[np.isin(time, cleaned.time)])
 
 
+def test_cleaning_keeps_each_surviving_points_sap() -> None:
+    rng = np.random.default_rng(1799)
+    time = 2459000.5 + np.arange(1000) * 200 / 86400
+    flux = 1.0 + 0.05 * np.sin(2 * np.pi * time / 0.8) + rng.normal(0, 0.001, time.size)
+    flux[500] += 0.02
+    quality = np.zeros(time.size, dtype=np.int32)
+    quality[:10] = 1
+    sap = flux * 1.1 + np.linspace(0.0, 0.05, time.size)
+    lc = dataclasses.replace(
+        light_curve(time, flux, 0.001, value_kind="flux", quality=quality), sap=sap
+    )
+
+    cleaned = clean(lc)
+
+    assert cleaned.sap is not None
+    assert cleaned.sap.size == cleaned.time.size == 989
+    np.testing.assert_array_equal(cleaned.sap, sap[np.isin(time, cleaned.time)])
+
+
 def test_cleaning_keeps_a_fast_pulsators_extremes() -> None:
     rng = np.random.default_rng(1706)
     time = 2459000.5 + np.arange(5000) * 120 / 86400  # TESS's 120 s cadence

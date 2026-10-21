@@ -75,8 +75,6 @@ SURVEYS = ("ztf", "tess", "gaia", "asassn")
 MAX_POINTS = 500
 # Coverage of a survey not fetched yet, as opposed to `[]`, fetched and holding nothing.
 PENDING = "pending"
-# `meta` entries that hold one value per point and so are trimmed with the arrays.
-_ALIGNED_META = ("sap",)
 
 
 def trim(lc: LightCurve, max_points: int, seed: int) -> LightCurve:
@@ -88,11 +86,7 @@ def trim(lc: LightCurve, max_points: int, seed: int) -> LightCurve:
     if n <= max_points:
         return lc
     keep = np.sort(np.random.default_rng(seed).choice(n, size=max_points, replace=False))
-    meta = dict(lc.meta)
-    for key in _ALIGNED_META:
-        if key in meta:
-            meta[key] = [meta[key][i] for i in keep]
-    meta["fixture_trim"] = {"points": n, "kept": max_points, "seed": seed}
+    meta = {**lc.meta, "fixture_trim": {"points": n, "kept": max_points, "seed": seed}}
     return dataclasses.replace(
         lc,
         time=lc.time[keep],
@@ -101,6 +95,7 @@ def trim(lc: LightCurve, max_points: int, seed: int) -> LightCurve:
         quality=lc.quality[keep],
         meta=meta,
         oid=lc.oid[keep] if lc.oid is not None else None,
+        sap=lc.sap[keep] if lc.sap is not None else None,
     )
 
 
