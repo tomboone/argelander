@@ -328,6 +328,25 @@ Order of operations in `analysis/worker.py` for one Target:
    The Gaia period's Lomb-Scargle FAP is the single-frequency one, since the period was
    chosen before the search. When the secondary eclipse is deeper than about 0.4 of the
    primary, BLS also folds at P/2, and the alias step has to settle the period.
+
+   *Amended 2026-10-21 (NEU-1839):* BLS searches in two stages, because evaluating the
+   fine grid was about 90 % of the analyzer's time. A coarse pass steps `BLS_COARSEN` = 8
+   times wider (the widest box over the narrowest), which dilutes a narrow eclipse's peak
+   rather than missing it. Then the `BLS_REFINE_PEAKS` = 500 highest coarse peaks are
+   re-searched at the fine step, two coarse steps either side. The returned frequency and
+   power are the coarse grid with the refined windows merged in; peaks and the Gaia score
+   are unchanged in meaning. K is 500, not the 20 first planned, by measurement. Over 168
+   synthetic detached binaries (1–1.5 % duty cycle, six seasons, 500–800 points), 135 were
+   found by the fine search. K = 20 recovered 126 of them and K = 500 recovered 133; the
+   two lost are coin flips even on the fine grid (true peak ≤ 1.02 × the runner-up). K = 500
+   costs about 10 % over K = 20, and the minimum-duty-cycle test (a 600-point curve whose
+   true peak ranks 108th at coarse resolution) fails at K = 20. A 500-point ZTF band's BLS
+   fell from 12.0 s to 1.7 s, and every gate star's agreed period is unchanged within its
+   tolerance. On clumped Light Curves, such as TESS sectors years apart, the fine power is
+   a comb of spikes the coarse step can miss outright at short periods, where the widest
+   box nears the period itself. CSS_J173907.6+550053's TESS best BLS peak moved from
+   0.1001986 d to 0.1002092 d this way, a noise peak for an RRab.
+   `box_least_squares(..., two_stage=False)` keeps the single pass for comparison.
 5. **Aliases** (`aliases.py`): for each candidate test P, 2P, P/2 and the 1 d, 0.5 d and
    sidereal-day (0.99727 d) aliases; for TESS also 13.7 d orbital systematics. Prefer the
    candidate whose phase-folded scatter is lowest and record the ranking.
@@ -650,15 +669,16 @@ from the grilling session:
   join recorded in `tests/fixtures/catalog/` (`scripts/build_fixtures.py --catalog`). A star
   the pipeline is known to fail is a strict xfail with its reason, so it shows in the run
   and the entry has to go when it starts passing. The stars run in parallel because BLS over
-  ZTF's baseline takes most of a minute each.
+  ZTF's baseline is the slow step (a few seconds a band since NEU-1839).
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
 
   *Amended 2026-10-20 (NEU-1838):* the prototype gate's tests are marked `gate` and run in
   a second job, `gate`, beside `ci`, which runs `pytest -m "not live and not gate"`. The gate
-  takes over ten minutes on a hosted runner (BoxLeastSquares over ZTF's baseline, for 27
-  stars on four cores); CI took about two before it. On a PR the `gate` job runs the tests
+  took over ten minutes on a hosted runner (BoxLeastSquares over ZTF's baseline, for 27
+  stars on four cores) until NEU-1839's two-stage BLS search cut it to 3 min 17 s (3 min
+  35 s for the whole job, measured 2026-10-21); CI took about two before it. On a PR the `gate` job runs the tests
   only when the PR changes `src/`, `tests/fixtures/`, `tests/test_prototype.py`,
   `tests/conftest.py`, `pyproject.toml` or `uv.lock`, and otherwise succeeds without running
   them; on a push to `main` it always runs them, each push in its own concurrency group. The job always reports, so the check exists on every PR.

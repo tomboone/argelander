@@ -15,9 +15,19 @@ narrowest box at short periods, and under half a `BLS_MIN_DUTY_CYCLE` eclipse at
 where no box that narrow is plausible. That makes the grid geometric below a period of
 `BLS_DURATIONS[0] / BLS_MIN_DUTY_CYCLE` and regular above it.
 
+Evaluating BLS on that whole grid is most of the analyzer's time, so the search runs in two
+stages (NEU-1839). A coarse pass steps `BLS_COARSEN` times wider, so a narrow eclipse
+smears to up to that many times its width and its peak is diluted rather than lost. The
+`BLS_REFINE_PEAKS` highest coarse peaks are then re-searched at the fine step, two coarse
+steps either side. Far more peaks are refined than are reported: the dilution can sink a
+true peak, a sparsely sampled one most of all, below hundreds of noise peaks that the coarse
+step leaves alone.
+
 Gaia's published period is the first hypothesis: whenever one is supplied its power is
 recorded beside the top peaks, whether or not a peak lands on it.
 """
+
+from collections.abc import Callable
 
 import numpy as np
 from astropy.timeseries import BoxLeastSquares, LombScargle
@@ -34,6 +44,9 @@ N_PEAKS = 5
 # period searched; a longer eclipse still registers, as a box sitting inside it.
 BLS_DURATIONS = (0.01, 0.02, 0.04, 0.08)  # days
 BLS_MIN_DUTY_CYCLE = 0.01  # the narrowest eclipse searched for, as a fraction of the period
+BLS_COARSEN = BLS_DURATIONS[-1] / BLS_DURATIONS[0]  # coarse pass's step, in fine steps
+BLS_REFINE_PEAKS = 500  # coarse peaks re-searched at the fine step (spec §6 step 4)
+BLS_REFINE_HALF_WIDTH = 2  # coarse steps either side of a peak that are re-searched
 
 
 def periodograms(
@@ -81,15 +94,29 @@ def lomb_scargle(lc: LightCurve, gaia_period: float | None = None) -> Periodogra
     )
 
 
-def box_least_squares(lc: LightCurve, gaia_period: float | None = None) -> PeriodogramResult:
-    """BoxLeastSquares over 0.1–30 d of a cleaned Light Curve; its peaks carry no FAP."""
-    frequency = _bls_grid(lc.time)
-    if not sufficient(lc) or frequency.size < 3:
+def box_least_squares(
+    lc: LightCurve, gaia_period: float | None = None, *, two_stage: bool = True
+) -> PeriodogramResult:
+    """BoxLeastSquares over 0.1–30 d of a cleaned Light Curve; its peaks carry no FAP.
+
+    `two_stage=False` evaluates the whole fine grid, the search before NEU-1839. The pipeline
+    never passes it; it is there to check the two-stage search against.
+    """
+    fine = _bls_grid(lc.time)
+    if not sufficient(lc) or fine.size < 3:
         return _insufficient(lc, "bls")
     # BLS looks for dips. A star in eclipse is fainter, which is a larger magnitude.
     y = -lc.value if lc.value_kind == "mag" else lc.value
     bls = BoxLeastSquares(lc.time, y, lc.error)
-    power = np.asarray(bls.power(1.0 / frequency, BLS_DURATIONS).power)
+
+    def power_at(frequency: np.ndarray) -> np.ndarray:
+        return np.asarray(bls.power(1.0 / frequency, BLS_DURATIONS).power)
+
+    coarse = _bls_grid(lc.time, coarsen=BLS_COARSEN)
+    if two_stage and coarse.size >= 3:
+        frequency, power = _refine(coarse, power_at(coarse), fine, power_at)
+    else:
+        frequency, power = fine, power_at(fine)
 
     gaia = None
     if gaia_period is not None:
@@ -113,6 +140,26 @@ def box_least_squares(lc: LightCurve, gaia_period: float | None = None) -> Perio
     )
 
 
+def _refine(
+    coarse: np.ndarray,
+    coarse_power: np.ndarray,
+    fine: np.ndarray,
+    power_at: Callable[[np.ndarray], np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """The coarse grid with the fine grid around its top peaks merged in, ascending."""
+    windows = []
+    for i in _maxima(coarse_power, BLS_REFINE_PEAKS):
+        low = coarse[max(i - BLS_REFINE_HALF_WIDTH, 0)]
+        high = coarse[min(i + BLS_REFINE_HALF_WIDTH, coarse.size - 1)]
+        windows.append(fine[(fine >= low) & (fine <= high)])
+    refined = np.unique(np.concatenate([np.empty(0), *windows]))
+    # Where a fine frequency coincides with a coarse one their powers are identical, so
+    # np.unique may keep either copy.
+    frequency, keep = np.unique(np.concatenate([coarse, refined]), return_index=True)
+    power = np.concatenate([coarse_power, power_at(refined)])[keep]
+    return frequency, power
+
+
 def _regular_grid(time: np.ndarray, min_period: float, max_period: float) -> np.ndarray:
     """1/d from `1/max_period` to `1/min_period` in steps of a tenth of a peak's width."""
     baseline = time[-1] - time[0] if time.size else 0.0
@@ -121,25 +168,32 @@ def _regular_grid(time: np.ndarray, min_period: float, max_period: float) -> np.
     return np.arange(1.0 / max_period, 1.0 / min_period, 1.0 / (OVERSAMPLING * baseline))
 
 
-def _bls_grid(time: np.ndarray) -> np.ndarray:
-    """1/d over `BLS_PERIOD_RANGE`; δf = max(narrowest box × f, min duty cycle) / baseline."""
+def _bls_grid(time: np.ndarray, coarsen: float = 1.0) -> np.ndarray:
+    """1/d over `BLS_PERIOD_RANGE`; δf = coarsen × max(narrowest box × f, duty cycle) / baseline."""
     baseline = time[-1] - time[0] if time.size else 0.0
     if baseline <= 0:
         return np.empty(0)
     low, high = 1.0 / BLS_PERIOD_RANGE[1], 1.0 / BLS_PERIOD_RANGE[0]
     knee = float(np.clip(BLS_MIN_DUTY_CYCLE / BLS_DURATIONS[0], low, high))
-    regular = np.arange(low, knee, BLS_MIN_DUTY_CYCLE / baseline)
-    ratio = 1.0 + BLS_DURATIONS[0] / baseline
+    step = coarsen * BLS_MIN_DUTY_CYCLE / baseline
+    # low + step × k, not np.arange's accumulated sum, so that every `coarsen`-th fine
+    # frequency is bit-identical to a coarse one and the refined merge drops it.
+    regular = low + step * np.arange(np.ceil((knee - low) / step))
+    ratio = 1.0 + coarsen * BLS_DURATIONS[0] / baseline
     geometric = knee * ratio ** np.arange(int(np.log(high / knee) / np.log(ratio)) + 1)
     return np.concatenate([regular, geometric])
 
 
 def _top_peaks(frequency: np.ndarray, power: np.ndarray) -> list[tuple[float, float]]:
     """(period, power) of the `N_PEAKS` highest local maxima, strongest first."""
+    return [(float(1.0 / frequency[i]), float(power[i])) for i in _maxima(power, N_PEAKS)]
+
+
+def _maxima(power: np.ndarray, count: int) -> np.ndarray:
+    """Indices of the `count` highest local maxima of `power`, strongest first."""
     inner = power[1:-1]
     maxima = np.flatnonzero((inner > power[:-2]) & (inner >= power[2:])) + 1
-    strongest = maxima[np.argsort(power[maxima])[::-1][:N_PEAKS]]
-    return [(float(1.0 / frequency[i]), float(power[i])) for i in strongest]
+    return maxima[np.argsort(power[maxima])[::-1][:count]]
 
 
 def _insufficient(lc: LightCurve, method: Method) -> PeriodogramResult:
