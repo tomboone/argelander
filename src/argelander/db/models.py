@@ -172,7 +172,9 @@ class Target(_Row, Base):
     vsx_type: Mapped[str | None]
     vsx_period: Mapped[float | None]
     vsx_mag_max: Mapped[float | None]
+    # VSX's magnitude at minimum, or its amplitude when `vsx_mag_min_is_amplitude`.
     vsx_mag_min: Mapped[float | None]
+    vsx_mag_min_is_amplitude: Mapped[bool] = mapped_column(server_default="false")
     vsx_band: Mapped[str | None]
     gaia_g: Mapped[float | None]
     gaia_bp_rp: Mapped[float | None]

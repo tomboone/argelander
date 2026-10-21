@@ -73,6 +73,7 @@ src/argelander/
     vsx.py             VizieR B/vsx slice query via astroquery
     gaia.py            table-upload joins per Slice chunk (gaia_source + vari_*, 2MASS, neighbours, TESS field)
     constellation.py   astropy get_constellation + Slice bounds
+  selector.py          select-slice: VSX + Gaia join → slices, targets, fetch Jobs
   lightcurve.py        LightCurve dataclass + Parquet read/write (section 5)
   fetch/
     base.py            Fetcher protocol, per-archive semaphore, retry with backoff
@@ -169,6 +170,22 @@ Target that already has an active Job of that kind is a no-op, race-free; once t
 `done` or `failed` the Target can be enqueued again. The queue functions never commit: a
 worker commits straight after `claim`, so the claim survives a crash for `release_stale` to
 recover.
+
+*Amended 2026-10-21 (NEU-1716):* `targets` also has `vsx_mag_min_is_amplitude` bool, VizieR's
+`f_min` flag: without it an amplitude would be stored as a magnitude at minimum. The Gaia
+JSONB columns hold a `GaiaRecord`'s fields by their dataclass names, so a later Stage can
+rebuild the record without asking Gaia again: `neighbours` is a list of `{source_id,
+separation, g}`, `tess_field` is `{n_sources, brightest_g, combined_g}`, and
+`gaia_vari_detail` is `{in_vari_summary, vari_g_trimmed_range, vari_subclass, vari_periods,
+ruwe, cross_ids}`, which also carries RUWE and the 2MASS designation, since this table has no
+column for either. `select-slice` (`argelander/selector.py`) writes one `slices` row per run and
+upserts Targets on `vsx_oid`: a rerun refreshes the Gaia columns only, and a Target keeps the
+Slice that first selected it, its VSX columns and its status, so a later Slice's `n_targets`
+counts the Targets that run selected, not the ones whose `slice_id` it is. It queues a fetch
+Job only for a Target still `selected`, so a rerun does not fetch again what the fetcher has
+already taken. When VSX lists one Gaia source under two OIDs, `gaia_source_id` being unique,
+the Target already stored for the source keeps it, across runs too; otherwise the lower OID
+does.
 
 **Target status** is derived for display, not stored as truth: it follows the newest Job
 and Proposal. A stored `status` column on `targets` is a cache updated by the workers
@@ -682,6 +699,9 @@ from the grilling session:
   *Amended 2026-10-21 (NEU-1714):* the `database_url` and `engine` fixtures live in
   `tests/conftest.py`, shared by `tests/test_db.py` and `tests/test_queue.py`; each database
   test module gets its own fresh `<name>_test` database.
+
+  *Amended 2026-10-21 (NEU-1716):* `tests/test_selector.py` is a database test module too. It
+  replays the recorded VSX and Gaia answers through `select-slice`'s own code.
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.
@@ -838,3 +858,13 @@ column: the Gaia DR3 ID is the entry's Name, `Gaia DR3 <source_id>`, for entries
 from Gaia. Another 88 VAR entries in Draco at 13–16 are named for other surveys (ZTF 56,
 ASAS-SN 17, and others) and are not Targets in v1, since VizieR does not carry the Other
 names that might hold their Gaia IDs.
+
+*Recorded 2026-10-21 (NEU-1716)*, from `argelander select-slice Dra 13 16` against the dev
+database (78 s for the VizieR query and the Gaia join): 430 Targets, 430 fetch Jobs, every
+Target with a Gaia DR3 record. By magnitude at maximum: 106 at 13–14, 119 at 14–15, 205 at
+15–16. None has a Gaia vari_* class, and all 430 have a Gaia period, each from
+`vari_short_timescale`: the entries VSX named for Gaia DR3 and typed `VAR` are Gaia's
+short-timescale variables, which are not in `vari_classifier_result`. So for the whole first
+Slice the hypothesis the analyzer tests first is the short-timescale frequency, the least
+trusted of Gaia's periods (§5.1). 258 Targets have a Gaia neighbour within 20″, and 426 a 2MASS
+designation. A second run added no Targets and no Jobs.
