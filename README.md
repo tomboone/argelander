@@ -37,7 +37,7 @@ drives the implementation plan.
 
 Python 3.12, FastAPI with server-rendered templates, Postgres (results and the
 job queue), Parquet light-curve cache, Docker Compose on a Mac mini behind a
-Tailscale sidecar (`deploy/tailscale.md`).
+Tailscale sidecar (`deploy/tailscale.md`), deployed with `task deploy` (`deploy/README.md`).
 
 ## Development
 

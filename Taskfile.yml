@@ -1,12 +1,14 @@
 version: "3"
 
 # Docker-only local dev: every tool runs in the `app` container, as the pre-commit hooks do.
-# `deploy` and `backup:check` arrive with the deploy and backup tickets (NEU-1725, NEU-1726).
+# The exception is `deploy`, which runs on the mini against compose.yaml alone (deploy/README.md).
+# `backup:check` arrives with the backup ticket (NEU-1726).
 dotenv: [".env"]
 
 vars:
   COMPOSE: docker compose -f compose.yaml -f compose.dev.yaml
   EXEC: docker compose exec -T app
+  PROD_COMPOSE: docker compose -f compose.yaml
 
 tasks:
   up:
@@ -66,3 +68,24 @@ tasks:
   migrate:
     desc: Apply database migrations to the dev database
     cmd: "{{.EXEC}} argelander db-upgrade"
+
+  deploy:
+    desc: "On the mini: pull main, rebuild, migrate and bring the prod stack up (deploy/README.md)"
+    preconditions:
+      - sh: test -n "$USB_ROOT"
+        msg: "USB_ROOT is not set: task deploy runs on the mini, with its .env; elsewhere, task deploy:remote"
+      - sh: test -n "$POSTGRES_PASSWORD"
+        msg: "POSTGRES_PASSWORD is not set in .env (deploy/README.md)"
+      - sh: test "$(git branch --show-current)" = main
+        msg: "the checkout is not on main; deploys come from main only"
+    cmds:
+      - git pull --ff-only
+      - "{{.PROD_COMPOSE}} pull --ignore-buildable"
+      - "{{.PROD_COMPOSE}} build --pull"
+      - "{{.PROD_COMPOSE}} run --rm fetcher argelander db-upgrade"
+      - "{{.PROD_COMPOSE}} up -d --remove-orphans"
+      - "{{.PROD_COMPOSE}} ps"
+
+  deploy:remote:
+    desc: Run task deploy on the mini over SSH
+    cmd: ssh kumadrome 'cd ~/argelander && task deploy'

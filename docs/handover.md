@@ -191,6 +191,8 @@ for business tools.
 - Mount the USB SSD by UUID in `/etc/fstab` with `nofail`, and make Docker wait
   for it (`RequiresMountsFor=` systemd override). Otherwise a reboot can leave
   the bind mount pointing at the boot disk.
+  *Amended 2026-10-21 (NEU-1725):* `WantsMountsFor=`, not `RequiresMountsFor=`, so a
+  missing SSD does not stop Docker starting at all; see spec §10 and `deploy/README.md`.
 - Review app reachable only on Tom's personal tailnet, through a
   `tailscale/tailscale` sidecar container (the mini already serves Navidrome
   and Uptime Kuma on separate tailnets this way; no host-level `tailscale up`).
