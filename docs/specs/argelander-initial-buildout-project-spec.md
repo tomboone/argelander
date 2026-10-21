@@ -204,6 +204,20 @@ band files. The files are written before the transaction commits: a commit that 
 them ahead of their rows until the Job's next attempt rewrites both. A re-fetch that fails
 for one survey discards that survey's earlier files with its row; the Cache is re-downloadable.
 
+*Amended 2026-10-21 (NEU-1718):* `analyses` also has `agreement_tolerance` (float, null
+without Agreement), the tolerance §6 step 6 judged the votes at, which varies per Analysis
+and had no column. The analyze worker (`argelander/analysis/worker.py`) fills the JSONB
+columns nested by survey and then band: `inputs` is survey → `light_curve_file_id`,
+`n_points`, `t_min_bjd`, `t_max_bjd` and `bands` from that survey's `ok` row; `periods` is
+survey → band → method (`lomb_scargle`, `bls`) → `n_points` after cleaning, `insufficient`,
+the five `peaks` (period, power, FAP; strongest, so the best, first) and the `gaia` score; and
+`alias_tests` is survey → band → `baseline` and the whole `ranking` of hypotheses, best
+first. `blend` and `cmd` hold the `Blend` and `CmdPosition` dataclasses field by field.
+Periodogram arrays are not stored; a plot redraws them from the Light Curves. NaN, which
+JSONB refuses, is stored as JSON null inside a column; a column with no value (`plots`
+before the hand-off, `blend` and `cmd` without a Gaia record) is SQL NULL, as every JSONB
+column's Python None now is.
+
 **Target status** is derived for display, not stored as truth: it follows the newest Job
 and Proposal. A stored `status` column on `targets` is a cache updated by the workers
 (`selected` → `fetching` → `fetched` → `analyzed` → `proposed` → `reviewed` →
@@ -531,6 +545,19 @@ Order of operations in `analysis/worker.py` for one Target:
    correction is a later improvement.
 9. Write the `analyses` row; hand off to `classify.propose` and `plots`.
 
+   *Amended 2026-10-21 (NEU-1718):* `argelander analyze-worker` takes one analyze Job a
+   pass, since the work is CPU-bound and runs inline. The claim's transaction also reads the
+   Target and its `ok` `light_curve_files` rows and commits; the Light Curves are loaded and
+   analysed outside any transaction, with the Gaia record rebuilt from the Target's columns
+   (`selector.gaia_record`, the inverse of `gaia_columns`). One transaction then upserts the
+   `analyses` row on `(target_id, pipeline_version)`, clearing `plots`, moves the Target to
+   `analyzed`, calls the hand-off (`worker.hand_off`, empty until NEU-1721 makes it call
+   `classify.propose()` and `plots.render_all()`) and completes the Job. A Target with no `ok`
+   Light Curve, or any error, goes to `queue.fail`; a spent Job fails its Target. The worker
+   sleeps `ANALYZE_POLL_INTERVAL` seconds (default 60) when the queue is empty, and refuses to
+   start on an unmounted `CACHE_DIR` as the fetch worker does, where every Target would
+   otherwise fail on missing files.
+
 ## 7. Classifier
 
 Rules are Python objects (grilling decision):
@@ -727,7 +754,8 @@ from the grilling session:
   (`deploy/restore.md`) is executed once as a ticket.
 - USB SSD mounted by UUID with `nofail` and a `RequiresMountsFor=` systemd override on
   docker.service, documented in `deploy/`; the fetcher refuses to start if `$CACHE_DIR`
-  is not a mount point (guards against writing to the boot disk).
+  is not a mount point (guards against writing to the boot disk), and so does the analyzer
+  (NEU-1718), which would otherwise fail every Target on an empty Cache.
 - Deploy: `git pull && docker compose pull/build && docker compose up -d` wrapped as
   `task deploy`, run over SSH by Tom. Not Coolify.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks

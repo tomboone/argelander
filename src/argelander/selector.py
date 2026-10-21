@@ -30,10 +30,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from argelander import PIPELINE_VERSION
-from argelander.catalog.gaia import GaiaRecord, fetch_catalog, run_upload_query
+from argelander.catalog.gaia import GaiaRecord, Neighbour, fetch_catalog, run_upload_query
 from argelander.catalog.vsx import VsxEntry, fetch_vsx_slice, run_vizier_query
 from argelander.db import queue
 from argelander.db.models import JobKind, Slice, Target, TargetStatus
+from argelander.fetch.base import TessField
 
 # The `targets` columns filled from a GaiaRecord, which a rerun refreshes.
 GAIA_COLUMNS = (
@@ -219,6 +220,37 @@ def gaia_columns(record: GaiaRecord | None) -> dict[str, Any]:
         "neighbours": [asdict(neighbour) for neighbour in record.neighbours],
         "tess_field": asdict(record.tess_field),
     }
+
+
+def gaia_record(target: Target) -> GaiaRecord | None:
+    """The GaiaRecord `gaia_columns` stored on `target`, rebuilt without asking Gaia again;
+    None when Gaia had no record of it.
+
+    Gaia's own position is not stored, so the record carries the Target's, which is VSX's;
+    the analyzer never reads it.
+    """
+    detail = target.gaia_vari_detail
+    if detail is None or target.tess_field is None:
+        return None
+    return GaiaRecord(
+        source_id=target.gaia_source_id,
+        ra=target.ra,
+        dec=target.dec,
+        g=target.gaia_g,
+        bp_rp=target.gaia_bp_rp,
+        parallax=target.parallax,
+        parallax_error=target.parallax_error,
+        ruwe=detail["ruwe"],
+        in_vari_summary=detail["in_vari_summary"],
+        vari_g_trimmed_range=detail["vari_g_trimmed_range"],
+        vari_class=target.gaia_vari_class,
+        vari_class_score=target.gaia_vari_class_score,
+        vari_subclass=detail["vari_subclass"],
+        vari_periods=detail["vari_periods"],
+        neighbours=tuple(Neighbour(**neighbour) for neighbour in target.neighbours),
+        tess_field=TessField(**target.tess_field),
+        cross_ids=detail["cross_ids"],
+    )
 
 
 def _vsx_columns(entry: VsxEntry) -> dict[str, Any]:

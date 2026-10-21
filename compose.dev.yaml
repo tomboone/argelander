@@ -3,7 +3,7 @@
 # localdev Postgres already holds 5432.
 
 # ALLOW_UNMOUNTED_CACHE: the dev Cache is a directory in the repo, not a mount point, which
-# the fetch worker refuses otherwise (spec §10).
+# the fetch and analyze workers refuse otherwise (spec §10).
 x-dev-environment: &dev-environment
   DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-argelander}@postgres:5432/argelander}
   ALLOW_UNMOUNTED_CACHE: "1"
