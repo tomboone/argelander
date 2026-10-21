@@ -113,6 +113,41 @@ def analyze_worker() -> None:
         raise typer.Exit(code=1) from error
 
 
+@app.command()
+def classify(
+    replot: Annotated[
+        bool,
+        typer.Option(
+            "--replot",
+            help="Redraw the plots of every Analysis at this Pipeline Version from its "
+            "Proposal, without analysing or classifying again.",
+        ),
+    ] = False,
+    target: Annotated[str | None, typer.Option(help="Only this Target, by VSX name.")] = None,
+) -> None:
+    """Redraw the evidence plots of stored Analyses (with --replot).
+
+    analyze-worker classifies each Target as it analyses it, so --replot is the one mode.
+    """
+    if not replot:
+        raise typer.BadParameter(
+            "analyze-worker proposes as it analyses; classify only redraws, with --replot"
+        )
+    # Imported here so `version` and --help never load the analysis chain and SQLAlchemy.
+    from argelander.classify.replot import UnknownTarget, replot_all
+    from argelander.config import get_settings
+    from argelander.db.session import sync_session_factory
+
+    settings = get_settings()
+    try:
+        count = replot_all(
+            sync_session_factory(), settings.cache_dir, settings.plots_dir, vsx_name=target
+        )
+    except UnknownTarget as error:
+        raise typer.BadParameter(str(error), param_hint="--target") from error
+    typer.echo(f"redrew the plots of {count} analyses")
+
+
 @app.command("db-upgrade")
 def db_upgrade() -> None:
     """Apply database migrations up to the newest revision."""
