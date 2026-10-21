@@ -52,5 +52,5 @@ tasks:
     cmd: "{{.EXEC}} ty check"
 
   migrate:
-    desc: Apply database migrations (placeholder until Alembic arrives with NEU-1713)
-    cmd: echo "No migrations yet; Alembic arrives with NEU-1713."
+    desc: Apply database migrations to the dev database
+    cmd: "{{.EXEC}} argelander db-upgrade"

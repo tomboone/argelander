@@ -27,6 +27,26 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    # tests/test_db.py migrates a throwaway database beside this one and checks the models
+    # against the migrations (`alembic check`), so the job needs a real Postgres.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: argelander
+          POSTGRES_PASSWORD: argelander
+          POSTGRES_DB: argelander
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U argelander -d argelander"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://argelander:argelander@localhost:5432/argelander
+
     steps:
       - uses: actions/checkout@v7
 
@@ -52,8 +72,6 @@ jobs:
         run: uv run pytest -m "not live and not gate"
 
       - name: Alembic single-head check
-        # Skips until the migrations directory exists (spec §3.1).
-        if: hashFiles('src/argelander/alembic/env.py') != ''
         run: |
           out=$(uv run alembic heads)
           heads=$(printf '%s\n' "$out" | grep -c '(head)' || true)

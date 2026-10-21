@@ -152,6 +152,16 @@ for anything queried or sorted.
 | `reviews` | Tom's Review of a Proposal | `proposal_id`, `decision` (`approve`/`edit`/`reject`), `edited` jsonb (field → new value, when decision = edit), `notes` text not null, `reviewed_at` |
 | `submissions` | a Submission and its Verdict | `proposal_id`, `review_id`, `form_fields` jsonb, `reference_text`, `plot_path`, `status` (`prepared`/`submitted`/`accepted`/`rejected`), `submitted_at`, `verdict_at`, `verdict_reason` text, `verdict_tags` text[] |
 
+*Amended 2026-10-21 (NEU-1713):* `targets` also has `tess_field` jsonb (the 120″ count,
+brightest G and combined G, §5.1), and `submissions.status` includes `needs_changes` (§9.2).
+Each fixed vocabulary is varchar with a CHECK constraint, not a Postgres enum type, so a new
+value is a constraint swap rather than `ALTER TYPE`; in Python each is a `StrEnum` in
+`db/models.py`. Every `target_id`, `slice_id`, `analysis_id` and `proposal_id` foreign key is
+indexed. `light_curve_files.source_key` and `path` are null on an `empty` or `failed` row.
+Migrations live in `src/argelander/alembic/`; `argelander db-upgrade` (`task migrate`) applies
+them and `tests/test_db.py` runs the equivalent of `alembic check` against a throwaway
+database.
+
 **Target status** is derived for display, not stored as truth: it follows the newest Job
 and Proposal. A stored `status` column on `targets` is a cache updated by the workers
 (`selected` → `fetching` → `fetched` → `analyzed` → `proposed` → `reviewed` →
@@ -655,6 +665,11 @@ from the grilling session:
   Parquet for the prototype set (≈ 20 well-characterised variables of the initial rule
   types plus negatives: known blends, 1-day-alias traps, constant stars), capped at a few
   MB total. A fixture manifest records each star's published period, type and source.
+
+  *Amended 2026-10-21 (NEU-1713):* "offline" means no archive calls, not no services:
+  `tests/test_db.py` needs the dev stack's Postgres (CI's `ci` job runs one as a service). It
+  migrates a throwaway `<name>_test` database, skips without `DATABASE_URL` outside CI, and
+  fails without it in CI.
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.
