@@ -132,6 +132,11 @@ unreachable) hands `psql` an empty or cut-off stream, `psql` restores what it go
 0, and the drill passes on nothing. An SQL error stops `psql` and rolls the whole restore
 back.
 
+Run these blocks in an interactive shell on the mini. Saved as a script and piped to
+`ssh kumadrome 'bash -s'`, they stop after the first command: `docker compose exec -T`
+still forwards stdin, so the first one reads the rest of the script as its own input. Copy
+the script to the mini and run it there as `bash drill.sh </dev/null`.
+
 Then compare the two. Reviews and submissions change only when Tom acts, so they should
 match exactly; the workers keep writing Targets, Jobs and Analyses, so those can be ahead in
 the live database by whatever ran since 03:30.
@@ -189,3 +194,23 @@ exists.
 
 4. `task deploy`. It migrates the restored database forward if the code is newer than the
    dump, and starts the rest of the stack, `backup` included.
+
+## Drills
+
+Each run of the restore drill above, newest first. Duration is from `createdb` to
+`dropdb`, timed on the mini.
+
+| Date | Snapshot | Duration | Restore | Migration | reviews | submissions | proposals | targets |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-21 | `df9abc4e`, 21:09, 21.005 KiB | 5s (restore 4s) | exit 0 | `b9e784367c66` both | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+Counts are live / restored.
+
+**2026-10-21.** The first drill, against the only snapshot (`task backup:now`, minutes
+after the backup service's first deploy). The restore ran clean, both databases are on the
+same migration, and all four queried tables exist in the restored copy, so the dump
+carries `alembic_version` and at least those tables. `argelander_restore` was dropped afterwards;
+the server was left with `argelander` and the system databases only. But no Target had
+been selected yet, so every count is 0 on both sides: this drill proves the dump restores,
+not that rows survive the trip. Run it again once the Draco slice has Targets and the
+first Reviews.
