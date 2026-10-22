@@ -105,3 +105,105 @@ a {
   gap: 1rem;
   margin: 1rem 0;
 }
+
+/* The evidence page (GET /proposals/{id}). */
+
+:root {
+  --alert: #fff8c5;
+  --alert-border: #d4a72c;
+  --changed: #ddf4ff;
+  --against: #cf222e;
+  --supports: #1a7f37;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --alert: #272115;
+    --alert-border: #9e6a03;
+    --changed: #121d2f;
+    --against: #f85149;
+    --supports: #3fb950;
+  }
+}
+
+.steps {
+  display: flex;
+  gap: 1rem;
+}
+
+.alert {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--alert-border);
+  border-radius: 0.375rem;
+  background: var(--alert);
+  font-size: 1.125rem;
+}
+
+.fields,
+.evidence,
+.peaks,
+.aliases,
+.neighbours {
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.fields th,
+.fields td,
+.evidence th,
+.evidence td,
+.peaks th,
+.peaks td,
+.aliases th,
+.aliases td,
+.neighbours th,
+.neighbours td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fields .number,
+.evidence .number,
+.peaks .number,
+.aliases .number,
+.neighbours .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.changed {
+  background: var(--changed);
+  font-weight: 600;
+}
+
+.evidence .against td:nth-child(2) {
+  color: var(--against);
+}
+
+.evidence .supports td:nth-child(2) {
+  color: var(--supports);
+}
+
+.plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.plots figure {
+  margin: 0;
+}
+
+.plots img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+}
+
+.plots figcaption {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
