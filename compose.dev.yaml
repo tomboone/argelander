@@ -66,6 +66,14 @@ services:
     healthcheck:
       disable: true
 
+  # The prod backup has no repository or B2 key in dev, so it would only restart in a loop.
+  # Behind a profile nothing activates, so `task up` leaves it alone; name it to try it.
+  backup:
+    profiles: [backup]
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-argelander}
+
   jupyter:
     build:
       context: .

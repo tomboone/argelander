@@ -1,8 +1,8 @@
 version: "3"
 
 # Docker-only local dev: every tool runs in the `app` container, as the pre-commit hooks do.
-# The exception is `deploy`, which runs on the mini against compose.yaml alone (deploy/README.md).
-# `backup:check` arrives with the backup ticket (NEU-1726).
+# The exceptions are `deploy` and `backup:*`, which run on the mini against compose.yaml alone
+# (deploy/README.md, deploy/restore.md).
 dotenv: [".env"]
 
 vars:
@@ -19,8 +19,8 @@ tasks:
       - 'echo "JupyterLab: http://localhost:${JUPYTER_PORT:-8888}/lab"'
 
   down:
-    desc: Stop the dev stack and its workers (the postgres volume is kept)
-    cmd: "{{.COMPOSE}} --profile workers down"
+    desc: Stop the dev stack, its workers and a backup started by hand (the postgres volume is kept)
+    cmd: "{{.COMPOSE}} --profile workers --profile backup down"
 
   workers:
     desc: Start (or restart) the fetch and analyze workers on the dev stack
@@ -89,3 +89,15 @@ tasks:
   deploy:remote:
     desc: Run task deploy on the mini over SSH
     cmd: ssh kumadrome 'cd ~/argelander && task deploy'
+
+  backup:check:
+    desc: "On the mini: list the restic snapshots in B2 (deploy/restore.md)"
+    preconditions: &on-the-mini
+      - sh: test -n "$USB_ROOT"
+        msg: "USB_ROOT is not set: the backup tasks run on the mini, with its .env"
+    cmd: "{{.PROD_COMPOSE}} exec -T backup restic snapshots"
+
+  backup:now:
+    desc: "On the mini: run the nightly backup now, outside its 03:30 schedule"
+    preconditions: *on-the-mini
+    cmd: "{{.PROD_COMPOSE}} exec -T backup argelander-backup"

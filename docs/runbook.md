@@ -278,6 +278,11 @@ on the personal tailnet, at `http://argelander:8000`. `deploy/tailscale.md` has 
 key, the ACLs, the checks, and what to do when the sidecar restarts on its own or loses its
 state volume.
 
+The `backup` service dumps Postgres to Backblaze B2 with restic every night at 03:30;
+`task backup:check` lists the snapshots, and `deploy/restore.md` has the setup, the restore
+drill and a real restore. It needs four more variables in the mini's `.env` and refuses to
+start without them.
+
 The CLI runs in the fetcher's container (`docker compose exec fetcher argelander status`),
 since prod has no `app` service. Logs are Docker's json-file driver, rotated at 5 × 10 MB per
 service.

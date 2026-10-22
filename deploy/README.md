@@ -8,8 +8,9 @@ Tom runs the one-time host steps below by hand, since they need `sudo`.
 | Piece | Where |
 | --- | --- |
 | Checkout | `~/argelander` on the mini, on `main`, cloned over HTTPS (the repo is public, so no deploy key) |
-| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, later `TS_AUTHKEY` once and `COMPOSE_PROFILES` |
+| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, the backup's restic and B2 settings, later `TS_AUTHKEY` once and `COMPOSE_PROFILES` |
 | Postgres data | the `argelander_postgres-data` named volume, on the internal SSD |
+| Its nightly backup | restic to Backblaze B2: `deploy/restore.md` |
 | The USB SSD | the 2 TB Samsung T7, `UUID=0e995573-d89e-44d3-8473-65ee5aa3e296`, mounted at `/mnt/music` and shared with Navidrome and the Kumas |
 | Argelander's part of it | `/mnt/music/argelander`, bind-mounted at `/mnt/argelander` (`USB_ROOT`): `cache/`, `plots/`, `astropy/` |
 | Docker waits for it | `/etc/systemd/system/docker.service.d/argelander-usb.conf` |
@@ -123,8 +124,13 @@ Run on the mini (`ssh kumadrome`).
    )
    ```
 
-8. **The first deploy.** Exactly the same as every later one: `task deploy` (below). It
-   initialises Postgres on its first start and migrates it.
+8. **The backup.** The B2 bucket, its key, the restic lines for `.env` and `restic init`:
+   `deploy/restore.md`, steps 1–4. Without them the `backup` service refuses to start and
+   restarts in a loop, naming what is missing; the rest of the stack runs regardless.
+
+9. **The first deploy.** Exactly the same as every later one: `task deploy` (below). It
+   initialises Postgres on its first start and migrates it. Then `task backup:now` takes
+   the first backup rather than waiting for 03:30.
 
 The review app and its tailnet node come later, with M6: `deploy/tailscale.md` covers the
 auth key and the first start.
@@ -146,7 +152,7 @@ from bringing the prod stack up on the laptop. Then it runs, against `compose.ya
 | --- | --- |
 | `git pull --ff-only` | A checkout that has diverged from `origin/main` stops the deploy rather than merging |
 | `docker compose pull --ignore-buildable` | Newer `postgres:16` (and `tailscale/tailscale:stable`, once its profile is active) |
-| `docker compose build --pull` | The prod image, on a freshly pulled `python:3.12-slim` |
+| `docker compose build --pull` | The prod image, on a freshly pulled `python:3.12-slim`, and the backup image on `debian:trixie-slim` |
 | `docker compose run --rm fetcher argelander db-upgrade` | Migrates before the new workers start; starts Postgres first if it is down |
 | `docker compose up -d --remove-orphans` | Recreates whatever changed; drops containers of services removed from `compose.yaml` |
 | `docker compose ps` | Shows the result: the workers turn healthy within a minute |
@@ -169,7 +175,7 @@ With the T7 attached:
 
 ```sh
 findmnt /mnt/music /mnt/argelander      # both mounted
-cd ~/argelander && docker compose ps     # fetcher and analyzer up, healthy
+cd ~/argelander && docker compose ps     # fetcher and analyzer up, healthy; backup up
 docker compose logs --tail 20 fetcher    # claiming Jobs or idling, no mount-guard error
 ```
 

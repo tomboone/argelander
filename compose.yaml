@@ -1,7 +1,7 @@
 # The prod stack on the Mac mini (spec §10); compose.dev.yaml layers the dev stack on top
-# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD, USB_ROOT and TS_AUTHKEY come
-# from the mini's .env. The first two have defaults that fail loudly rather than being
-# required with `:?`, which Compose checks per file before merging, so it would refuse the dev
+# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD, USB_ROOT, TS_AUTHKEY and the
+# backup's restic and B2 settings come from the mini's .env. The first two have defaults that
+# fail loudly rather than being required with `:?`, which Compose checks per file before merging, so it would refuse the dev
 # stack too: an empty password stops Postgres initialising, and the placeholder USB_ROOT names
 # itself in the "bind source path does not exist" error. TS_AUTHKEY is blank after the first
 # start by design.
@@ -94,6 +94,34 @@ services:
       interval: 1m
       timeout: 5s
 
+  # Nightly pg_dump into a restic repository on Backblaze B2, at 03:30 local (deploy/restore.md).
+  # Only Postgres is backed up: the Cache can be downloaded again and the plots redrawn. Its
+  # own image, not the app's. The repository and its credentials come from the mini's .env;
+  # without them the service refuses to start and says which are missing. pg_dump takes a
+  # libpq URL, so DATABASE_URL here has no `+psycopg` driver suffix, and no password: in the
+  # URL it would sit in pg_dump's arguments, which `ps` on the host shows. libpq reads
+  # PGPASSWORD instead.
+  backup:
+    build: deploy/backup
+    image: argelander-backup:latest
+    init: true
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TZ: America/New_York
+      DATABASE_URL: postgresql://argelander@postgres:5432/argelander
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - restic-cache:/var/cache/restic
+    logging: *logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # The api's network namespace: its own node, `argelander`, on the personal tailnet; the host
   # is on no tailnet (deploy/tailscale.md). Userspace networking, like the mini's other
   # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
@@ -161,3 +189,5 @@ volumes:
   postgres-data:
   # The node key. Losing it means registering the node again (deploy/tailscale.md).
   tailscale-state:
+  # restic's local copy of the repository index; disposable, rebuilt from B2 when missing.
+  restic-cache:

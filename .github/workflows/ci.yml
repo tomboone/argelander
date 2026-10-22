@@ -84,6 +84,10 @@ jobs:
       - name: Docker build
         run: docker build --tag argelander:ci .
 
+      - name: Backup image build
+        # Otherwise its first build is on the mini, at deploy time (deploy/restore.md).
+        run: docker build --tag argelander-backup:ci deploy/backup
+
   gate:
     # The prototype gate (spec §11): every fixture star through the pipeline. On a PR it runs
     # only when something it could catch has changed. The job itself always runs and reports,

@@ -899,6 +899,21 @@ from the grilling session:
   local: `pg_dump | restic backup --stdin --stdin-filename argelander.sql` to a B2 bucket,
   then `restic forget --keep-daily 14 --keep-weekly 8 --prune`. A documented restore drill
   (`deploy/restore.md`) is executed once as a ticket.
+  *Amended 2026-10-21 (NEU-1726):* restic runs the dump itself,
+  `restic backup --stdin-from-command -- pg_dump`, instead of reading a pipe, so a failed
+  dump saves no snapshot rather than a truncated one that retention would count as a good
+  night. Each run first runs `restic unlock` (stale locks only), since a run killed mid-prune
+  would otherwise fail every later one, pins `--host argelander` because the container's
+  hostname changes on every recreate, and on Sundays ends with
+  `restic check --read-data-subset=5%`. B2 is reached through its S3-compatible API, as
+  restic's documentation recommends, with a bucket-scoped application key and the bucket's
+  "keep only the last version" lifecycle rule. The image is `debian:trixie-slim`, not
+  the app's `python:3.12-slim`, since it runs no Python, with `postgresql-client-16` from PGDG
+  (a pg_dump 17 dump does not restore into a 16 server) and release binaries of restic and
+  supercronic; CI builds it beside the app image. The service has a 512 MB limit, takes the
+  database password as `PGPASSWORD` rather than in the URL (where `ps` would show it), and
+  refuses to start without its four restic and B2 `.env` variables. `task backup:check` and
+  `task backup:now` run on the mini.
 - USB SSD mounted by UUID with `nofail` and a `RequiresMountsFor=` systemd override on
   docker.service, documented in `deploy/`; the fetcher refuses to start if `$CACHE_DIR`
   is not a mount point (guards against writing to the boot disk), and so does the analyzer
