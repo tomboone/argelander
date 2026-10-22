@@ -1,0 +1,80 @@
+{# The review region of the evidence page (spec §9): the form while the Proposal is queued, its
+   Review once it has one. A Review posted with htmx swaps this region; a plain form post is
+   redirected to the next queued Proposal. #}
+{% set p = panel.proposal %}
+<section id="review" class="review">
+  <h2>Review</h2>
+  {% if panel.form %}
+    {% set form = panel.form %}
+    {% macro error(name) %}{% if form.errors[name] %}<span class="error" id="review-{{ name }}-error">{{ form.errors[name] }}</span>{% endif %}{% endmacro %}
+    <form class="review-form" method="post" action="/proposals/{{ p.id }}/review"
+          hx-post="/proposals/{{ p.id }}/review" hx-target="#review" hx-swap="outerHTML">
+      <fieldset class="decision">
+        <legend>Decision</legend>
+        {% for value, label in (("approve", "Approve"), ("edit", "Edit and approve"), ("reject", "Reject")) %}
+          <label><input type="radio" name="decision" value="{{ value }}" required{% if form.decision == value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+        {{ error("decision") }}
+      </fieldset>
+
+      {# Shown only while "Edit and approve" is chosen (style.css); ignored on any other decision. #}
+      <fieldset class="edit-fields">
+        <legend>Edits <span class="muted">only the fields changed from the Proposal are kept</span></legend>
+        <label>Type <span class="muted">a trailing “:” marks it uncertain</span>
+          <input name="proposed_type" value="{{ form.values.proposed_type }}">{{ error("proposed_type") }}</label>
+        <label>Period (d)
+          <input name="period" value="{{ form.values.period }}" inputmode="decimal">{{ error("period") }}</label>
+        <label>Epoch (BJD)
+          <input name="epoch_bjd" value="{{ form.values.epoch_bjd }}" inputmode="decimal">{{ error("epoch_bjd") }}</label>
+        <label>Maximum
+          <input name="mag_max" value="{{ form.values.mag_max }}" inputmode="decimal">{{ error("mag_max") }}</label>
+        <label>Minimum{{ " (amplitude)" if p.min_is_amplitude }}
+          <input name="mag_min" value="{{ form.values.mag_min }}" inputmode="decimal">{{ error("mag_min") }}</label>
+        <label>Band
+          <input name="band" value="{{ form.values.band }}">{{ error("band") }}</label>
+        {% if panel.plots %}
+          <label>Submission plot
+            <select name="plot">
+              {% for kind, _ in panel.plots %}
+                <option value="{{ kind }}"{% if form.values.plot == kind %} selected{% endif %}>{{ kind }}</option>
+              {% endfor %}
+            </select>{{ error("plot") }}</label>
+        {% endif %}
+      </fieldset>
+
+      <label class="notes" for="review-notes">Notes <span class="muted">required: the record of why</span></label>
+      <textarea name="notes" id="review-notes" rows="4" required>{{ form.notes }}</textarea>
+      {{ error("notes") }}
+
+      <button type="submit">Record Review</button>
+    </form>
+  {% elif panel.review %}
+    {% set r = panel.review %}
+    {% set verdicts = {"approve": "Approved", "edit": "Edited and approved", "reject": "Rejected"} %}
+    <p><strong>{{ verdicts[r.decision.value] }}</strong> <span class="muted">{{ r.reviewed_at.strftime("%Y-%m-%d %H:%M") }}</span></p>
+    <blockquote class="notes">{{ r.notes }}</blockquote>
+    {% if panel.edits %}
+      <table class="fields">
+        <thead><tr><th>Edited</th><th>To</th></tr></thead>
+        <tbody>
+          {% for label, value in panel.edits %}<tr><th>{{ label }}</th><td>{{ value }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+    {% if panel.submission %}
+      <p>Submission {{ panel.submission.id }}, {{ panel.submission.status.value }}, attaching {{ panel.submission.plot_path }}.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">This Proposal is {{ p.status.value }}, so it is not open to review.</p>
+  {% endif %}
+
+  {% if not panel.form %}
+    <p class="next">
+      {% if panel.next_id %}
+        <a href="/proposals/{{ panel.next_id }}" autofocus>Next queued Proposal ({{ panel.next_id }})</a>
+      {% else %}
+        The queue is empty. <a href="/">Back to the queue</a>
+      {% endif %}
+    </p>
+  {% endif %}
+</section>

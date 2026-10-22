@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -25,6 +25,7 @@ from argelander.config import Settings, get_settings
 from argelander.db.session import async_session_factory, create_async_engine
 from argelander.web.proposal import proposal_page
 from argelander.web.queue import QueueFilters, proposed_types, queue_page, status_counts
+from argelander.web.review import review_panel, submit_review
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         page = await proposal_page(session, proposal_id)
         if page is None:
             raise HTTPException(status_code=404, detail="No such Proposal")
-        return templates.TemplateResponse(request, "proposal.html", {"page": page})
+        panel = await review_panel(session, page.proposal)
+        return templates.TemplateResponse(request, "proposal.html", {"page": page, "panel": panel})
+
+    @app.post("/proposals/{proposal_id}/review", response_model=None)
+    async def review(
+        request: Request, session: Session, proposal_id: int
+    ) -> HTMLResponse | RedirectResponse:
+        """Record Tom's Review of a queued Proposal and move on to the next queued one. htmx
+        gets the review region back, showing the Review, or the form with its errors (422),
+        or the Review already recorded (409); a plain form post is redirected, or gets the
+        whole page back with the errors."""
+        outcome = await submit_review(session, proposal_id, await request.form())
+        if outcome is None:
+            raise HTTPException(status_code=404, detail="No such Proposal")
+        panel, status_code = outcome.panel, outcome.status_code
+        next_url = f"/proposals/{panel.next_id}" if panel.next_id else None
+        if "HX-Request" in request.headers:
+            # HX-Location has htmx load the next Proposal in place of this page; with nothing
+            # left queued, the region shows the Review and the way back to the queue.
+            advance = {"HX-Location": next_url} if outcome.recorded and next_url else None
+            return templates.TemplateResponse(
+                request,
+                "_review_form.html",
+                {"panel": panel},
+                status_code=status_code,
+                headers=advance,
+            )
+        if outcome.recorded:
+            return RedirectResponse(next_url or "/", status_code=303)
+        page = await proposal_page(session, proposal_id)
+        context = {"page": page, "panel": panel}
+        return templates.TemplateResponse(
+            request, "proposal.html", context, status_code=status_code
+        )
 
     @app.get("/healthz")
     async def healthz(request: Request) -> JSONResponse:
