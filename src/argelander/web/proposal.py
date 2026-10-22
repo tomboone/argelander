@@ -140,7 +140,7 @@ def no_agreement_explanation(evidence: list[Evidence], best: str | None) -> str 
     return found.explanation
 
 
-async def _neighbour(session: AsyncSession, proposal: Proposal, before: bool) -> int | None:
+async def queue_neighbour(session: AsyncSession, proposal: Proposal, before: bool) -> int | None:
     """The queued Proposal just before (or after) `proposal` in the queue's order."""
     confidence, id_ = Proposal.confidence, Proposal.id
     if before:
@@ -192,6 +192,6 @@ async def proposal_page(session: AsyncSession, proposal_id: int) -> ProposalPage
         earlier=earlier,
         newest_id=newest_id if newest_id != proposal.id else None,
         diff=diff(earlier, proposal) if earlier else (),
-        previous_id=await _neighbour(session, proposal, before=True),
-        next_id=await _neighbour(session, proposal, before=False),
+        previous_id=await queue_neighbour(session, proposal, before=True),
+        next_id=await queue_neighbour(session, proposal, before=False),
     )

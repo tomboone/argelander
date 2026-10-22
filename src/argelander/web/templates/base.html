@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Argelander{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
-  {# htmx halts a request on a form that fails validation; this says why rather than nothing. #}
-  <meta name="htmx-config" content='{"reportValidityOfForms": true}'>
+  {# htmx halts a request on a form that fails validation; this says why rather than nothing.
+     The review form's 409 and 422 carry the region to show, so they are swapped in too. #}
+  <meta name="htmx-config" content='{"reportValidityOfForms": true, "responseHandling": [{"code": "204", "swap": false}, {"code": "[23]..", "swap": true}, {"code": "409|422", "swap": true}, {"code": "[45]..", "swap": false, "error": true}, {"code": "...", "swap": false}]}'>
   <script src="{{ url_for('static', path='htmx.min.js') }}" defer></script>
 </head>
 <body>

@@ -328,8 +328,9 @@ class Submission(_Row, Base):
 
     proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), index=True)
     review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id"))
-    form_fields: Mapped[dict[str, Any]]
-    reference_text: Mapped[str] = mapped_column(Text)
+    # Null until the form renderer fills them (spec §9.1): a Review prepares the Submission.
+    form_fields: Mapped[dict[str, Any] | None]
+    reference_text: Mapped[str | None] = mapped_column(Text)
     plot_path: Mapped[str]
     status: Mapped[SubmissionStatus] = mapped_column(
         _vocabulary(SubmissionStatus, "status"), server_default=SubmissionStatus.PREPARED.value

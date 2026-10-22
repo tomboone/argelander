@@ -832,6 +832,33 @@ overwrite the Analysis row beneath a reviewed Proposal. Previous and next follow
 order over `queued` Proposals from wherever this one sorts, so a reviewed Proposal still
 steps into the queue.
 
+*Amended 2026-10-21 (NEU-1731):* `POST /proposals/{id}/review` (`web/review.py`,
+`_review_form.html`, embedded on the evidence page) reviews a `queued` Proposal only: any other
+is a 409 showing its Review, or that it is not open to review, and an unknown id is a 404. The row is locked for
+the Review, so a double post finds it reviewed. Notes are required and stripped; a blank one,
+a missing decision, or an edit field that does not parse is a 422 that writes nothing and
+returns the form as filled in. The edit fields are the type (a trailing `:` sets `uncertain`;
+a code from the type vocabulary), period (positive), epoch (a full BJD, at least 2400000),
+maximum and minimum (maximum not fainter than minimum unless the minimum is an amplitude),
+band (the passband vocabulary or `TESS`) and the submission plot (a kind in `analyses.plots`,
+`submission` by default). A blank field clears the value, as for an aperiodic type's period.
+They arrive pre-filled with the Proposal's values, and
+`reviews.edited` keeps only those that differ, keyed by the Proposal's column names plus
+`plot`; an edit that changes nothing is a 422. The Proposal keeps the classifier's values. An
+approve or an edit sets it `approved` and creates one `prepared` Submission whose `plot_path`
+is the chosen plot; `form_fields` and `reference_text` are now nullable and stay null until the
+form renderer (§9.1) fills them from the Proposal and the Submission's Review. Approving when
+the Analysis drew no `submission` plot is a 422: VSX takes one attachment, so only an edit
+attaches another plot. A reject sets `rejected` and creates no Submission. The
+Target's status is recomputed (`status.recompute`) in the same transaction. Over htmx a
+recorded Review answers with the region showing it and an `HX-Location` to the next queued
+Proposal in the queue's order, wrapping to the queue's top, which htmx loads in place of the
+page; with nothing left queued there is no `HX-Location` and the region links back to `/`.
+`base.html`'s `responseHandling` swaps a 409 or 422 too. A plain form post is redirected (303)
+to that Proposal, or to `/` when nothing is queued, and an
+invalid one gets the whole page back. The edit fields show only while "Edit and approve" is
+chosen, by CSS `:has()`. Form posts need `python-multipart`.
+
 ### 9.1 Submission tracker
 
 `submission/form.py` renders the VSX revision-form fields from the Proposal and Review.
