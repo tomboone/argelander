@@ -47,6 +47,13 @@ BANDS = PASSBAND_VOCABULARY | set(PASSBANDS.values())
 # A full BJD, not a reduced one: anything earlier is 2400000 short (or a typo).
 MIN_BJD = 2_400_000.0
 
+# A Review's decision as the pages show it (CONTEXT.md: Review).
+DECISION_LABELS = {
+    ReviewDecision.APPROVE: "Approved",
+    ReviewDecision.EDIT: "Edited and approved",
+    ReviewDecision.REJECT: "Rejected",
+}
+
 # The editable fields, each with its label, in the form's order.
 FIELD_LABELS = {
     "proposed_type": "Type",

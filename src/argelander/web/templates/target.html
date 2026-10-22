@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.target.vsx_name }}: history · Argelander{% endblock %}
+
+{% block content %}
+  {# A number in `spec`, or a dash for none. #}
+  {% macro num(value, spec="%.7g") %}{{ spec|format(value) if value is not none else "—" }}{% endmacro %}
+  {% macro when(at) %}<time datetime="{{ at.isoformat() }}">{{ at.strftime("%Y-%m-%d %H:%M") }}</time>{% endmacro %}
+  {% set t = page.target %}
+
+  <nav class="steps">
+    <a href="/">Queue</a>
+  </nav>
+
+  <h1>{{ t.vsx_name }}</h1>
+  <p class="muted">Target {{ t.id }}, {{ t.status.value }}.</p>
+
+  <section>
+    <h2>VSX</h2>
+    <table class="fields">
+      <tbody>
+        <tr><th>OID</th><td>{{ t.vsx_oid }}</td></tr>
+        <tr><th>Type</th><td>{{ t.vsx_type or "—" }}</td></tr>
+        <tr><th>Period (d)</th><td class="number">{{ num(t.vsx_period) }}</td></tr>
+        <tr><th>Maximum</th><td class="number">{{ num(t.vsx_mag_max, "%.2f") }}</td></tr>
+        <tr><th>Minimum</th><td class="number">{{ num(t.vsx_mag_min, "%.2f") }}{{ " (amplitude)" if t.vsx_mag_min_is_amplitude }}</td></tr>
+        <tr><th>Band</th><td>{{ t.vsx_band or "—" }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Gaia DR3</h2>
+    <table class="fields">
+      <tbody>
+        <tr><th>Source</th><td>{{ t.gaia_source_id }}</td></tr>
+        <tr><th>RA, Dec (°)</th><td class="number">{{ num(t.ra, "%.6f") }}, {{ num(t.dec, "%+.6f") }}</td></tr>
+        <tr><th>G</th><td class="number">{{ num(t.gaia_g, "%.2f") }}</td></tr>
+        <tr><th>BP−RP</th><td class="number">{{ num(t.gaia_bp_rp, "%.2f") }}</td></tr>
+        <tr><th>Parallax (mas)</th><td class="number">{{ num(t.parallax, "%.3f") }} ± {{ num(t.parallax_error, "%.3f") }}</td></tr>
+        <tr>
+          <th>Class</th>
+          <td>{{ t.gaia_vari_class or "none" }}{% if t.gaia_vari_class_score is not none %} (score {{ "%.2f"|format(t.gaia_vari_class_score) }}){% endif %}</td>
+        </tr>
+        <tr><th>Period (d)</th><td class="number">{{ num(t.gaia_vari_period) }}</td></tr>
+        <tr><th>Sources within 20″</th><td class="number">{{ t.neighbours|length }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Light Curves</h2>
+    <table class="fields light-curves">
+      <thead>
+        <tr>
+          <th>Survey</th><th>Status</th><th class="number">Points</th><th>BJD</th><th>Bands</th><th>Fetched</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in page.surveys %}
+          {% set f = entry.file %}
+          {% if f is none %}
+            <tr class="muted"><th>{{ entry.survey.value }}</th><td colspan="5">no data</td></tr>
+          {% else %}
+            <tr>
+              <th>{{ entry.survey.value }}</th>
+              <td>{{ f.status.value }}{% if f.error %}: {{ f.error }}{% endif %}</td>
+              <td class="number">{{ f.n_points }}</td>
+              <td class="number">{{ num(f.t_min_bjd, "%.1f") }} to {{ num(f.t_max_bjd, "%.1f") }}</td>
+              <td>{{ f.bands|join(", ") or "—" }}</td>
+              <td>{{ when(f.fetched_at) }}</td>
+            </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>History</h2>
+    {% if page.timeline %}
+      <ol class="timeline">
+        {% for event in page.timeline %}
+          {% set r = event.row %}
+          <li class="{{ event.kind }}">
+            {{ when(event.at) }}
+            {% if event.kind == "analysis" %}
+              <strong>Analysis {{ r.id }}</strong>, Pipeline Version {{ r.pipeline_version }}:
+              {% if r.agreement %}
+                {{ r.agreed_sources|join(", ") }} agree on {{ num(r.agreed_period) }} d.
+              {% else %}
+                no Agreement.
+              {% endif %}
+              <span class="muted">Surveys read: {{ (r.inputs or {})|list|sort|join(", ") or "none" }}.</span>
+            {% elif event.kind == "proposal" %}
+              {# VSX marks an uncertain type with a trailing colon. #}
+              <strong><a href="/proposals/{{ r.id }}">Proposal {{ r.id }}</a></strong>, Pipeline Version {{ r.pipeline_version }}:
+              {{ r.proposed_type }}{{ ":" if r.uncertain }}, period {{ num(r.period) }} d,
+              Confidence {{ "%.3f"|format(r.confidence) }}; now {{ r.status.value }}.
+              {% if r.superseded_by %}<span class="muted">Superseded by <a href="/proposals/{{ r.superseded_by }}">Proposal {{ r.superseded_by }}</a>.</span>{% endif %}
+            {% elif event.kind == "review" %}
+              <strong>Review {{ r.id }}</strong> of <a href="/proposals/{{ r.proposal_id }}">Proposal {{ r.proposal_id }}</a>: {{ decision_labels[r.decision] }}.
+              {% if r.edited %}
+                <span class="muted">Edited: {% for field, value in r.edited|dictsort %}{{ field }} → {{ value if value is not none else "blank" }}{{ ", " if not loop.last }}{% endfor %}.</span>
+              {% endif %}
+              <blockquote class="notes">{{ r.notes }}</blockquote>
+            {% elif event.kind == "prepared" %}
+              <strong>Submission {{ r.id }}</strong> prepared from <a href="/proposals/{{ r.proposal_id }}">Proposal {{ r.proposal_id }}</a>; now {{ r.status.value }}.
+            {% elif event.kind == "submitted" %}
+              <strong>Submission {{ r.id }}</strong> submitted to VSX.
+            {% else %}
+              <strong>Submission {{ r.id }}</strong> Verdict: {{ r.status.value }}.
+              {% if r.verdict_tags %}<span class="muted">Tags: {{ r.verdict_tags|join(", ") }}.</span>{% endif %}
+              {% if r.verdict_reason %}<blockquote class="notes">{{ r.verdict_reason }}</blockquote>{% endif %}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="muted">Nothing yet: the Target has not been analyzed.</p>
+    {% endif %}
+  </section>
+{% endblock %}

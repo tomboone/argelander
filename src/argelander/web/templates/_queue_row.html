@@ -1,5 +1,5 @@
 <tr>
-  <td><a href="/proposals/{{ row.proposal_id }}">{{ row.vsx_name }}</a></td>
+  <td><a href="/proposals/{{ row.proposal_id }}">{{ row.vsx_name }}</a> <a class="muted" href="/targets/{{ row.target_id }}">history</a></td>
   <td>{{ row.vsx_type or "—" }}</td>
   <td class="number">{{ "%.7g"|format(row.vsx_period) if row.vsx_period is not none else "—" }}</td>
   {# VSX marks an uncertain type with a trailing colon. #}

@@ -50,8 +50,7 @@
     </form>
   {% elif panel.review %}
     {% set r = panel.review %}
-    {% set verdicts = {"approve": "Approved", "edit": "Edited and approved", "reject": "Rejected"} %}
-    <p><strong>{{ verdicts[r.decision.value] }}</strong> <span class="muted">{{ r.reviewed_at.strftime("%Y-%m-%d %H:%M") }}</span></p>
+    <p><strong>{{ decision_labels[r.decision] }}</strong> <span class="muted">{{ r.reviewed_at.strftime("%Y-%m-%d %H:%M") }}</span></p>
     <blockquote class="notes">{{ r.notes }}</blockquote>
     {% if panel.edits %}
       <table class="fields">
