@@ -817,6 +817,21 @@ relative, since behind the tailnet sidecar the request's own scheme and host are
 page's. No index serves the sort: `tests/test_web_queue.py` holds the page under 500 ms with
 2,000 queued Proposals.
 
+*Amended 2026-10-21 (NEU-1730):* `GET /proposals/{id}` is the evidence page
+(`web/proposal.py`, `proposal.html`); an unknown id is a 404. The diff compares the Proposal
+with the Target's newest earlier one (the highest lower id, whatever its status), field by
+field as the page shows them, and marks the changed rows; an older Proposal, approved and
+rejected ones included, links forward to the Target's newest. Plots are laid out phase plots
+first, by survey and band, then `periodogram`, `cmd`, `combined` and `submission`, each an
+`<img>` under `/plots/`. The Evidence is grouped by type, the best-scoring type first (the
+one the Proposal's Confidence belongs to, Gaia's class breaking a tie as in
+`confidence.best_type`), then by score. Without Agreement the page leads with the Agreement
+rule's explanation for that type; whether there was Agreement is read off the Proposal's own
+Evidence (the rule opposes a periodic type only without it), since a same-version rerun can
+overwrite the Analysis row beneath a reviewed Proposal. Previous and next follow the queue's
+order over `queued` Proposals from wherever this one sorts, so a reviewed Proposal still
+steps into the queue.
+
 ### 9.1 Submission tracker
 
 `submission/form.py` renders the VSX revision-form fields from the Proposal and Review.

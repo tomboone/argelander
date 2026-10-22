@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from argelander.config import Settings, get_settings
 from argelander.db.session import async_session_factory, create_async_engine
+from argelander.web.proposal import proposal_page
 from argelander.web.queue import QueueFilters, proposed_types, queue_page, status_counts
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name = "_queue.html" if partial else "index.html"
         # One URL answers with a fragment or a page, so a cache must key on the header.
         return templates.TemplateResponse(request, name, context, headers={"Vary": "HX-Request"})
+
+    @app.get("/proposals/{proposal_id}", response_class=HTMLResponse)
+    async def proposal(request: Request, session: Session, proposal_id: int) -> HTMLResponse:
+        """One Proposal's evidence, beside VSX's values and any earlier Proposal's."""
+        page = await proposal_page(session, proposal_id)
+        if page is None:
+            raise HTTPException(status_code=404, detail="No such Proposal")
+        return templates.TemplateResponse(request, "proposal.html", {"page": page})
 
     @app.get("/healthz")
     async def healthz(request: Request) -> JSONResponse:
