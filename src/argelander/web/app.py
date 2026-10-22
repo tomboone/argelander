@@ -25,12 +25,16 @@ from argelander.config import Settings, get_settings
 from argelander.db.session import async_session_factory, create_async_engine
 from argelander.web.proposal import proposal_page
 from argelander.web.queue import QueueFilters, proposed_types, queue_page, status_counts
-from argelander.web.review import review_panel, submit_review
+from argelander.web.review import DECISION_LABELS, review_panel, submit_review
+from argelander.web.target import target_page
 
 logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).parent
-templates = Jinja2Templates(directory=WEB_DIR / "templates")
+templates = Jinja2Templates(
+    directory=WEB_DIR / "templates",
+    context_processors=[lambda request: {"decision_labels": DECISION_LABELS}],
+)
 
 # Inside the Docker healthcheck's 10 s and Uptime Kuma's own timeout, so a hung Postgres
 # answers 503 instead of leaving the check to time out.
@@ -174,6 +178,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return templates.TemplateResponse(
             request, "proposal.html", context, status_code=status_code
         )
+
+    @app.get("/targets/{target_id}", response_class=HTMLResponse)
+    async def target(request: Request, session: Session, target_id: int) -> HTMLResponse:
+        """One Target's history: its data, its Light Curves and everything done to it."""
+        page = await target_page(session, target_id)
+        if page is None:
+            raise HTTPException(status_code=404, detail="No such Target")
+        return templates.TemplateResponse(request, "target.html", {"page": page})
 
     @app.get("/healthz")
     async def healthz(request: Request) -> JSONResponse:

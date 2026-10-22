@@ -48,6 +48,7 @@ class QueueFilters(BaseModel):
 @dataclass(frozen=True)
 class QueueRow:
     proposal_id: int
+    target_id: int
     vsx_name: str
     vsx_type: str | None
     vsx_period: float | None
@@ -91,6 +92,7 @@ def _row(row: Any) -> QueueRow:
     contaminations = (row.blend or {}).get("contaminations", [])
     return QueueRow(
         proposal_id=row.id,
+        target_id=row.target_id,
         vsx_name=row.vsx_name,
         vsx_type=row.vsx_type,
         vsx_period=row.vsx_period,
@@ -115,6 +117,7 @@ async def queue_page(session: AsyncSession, filters: QueueFilters) -> QueuePage:
     query = (
         select(
             Proposal.id,
+            Proposal.target_id,
             Target.vsx_name,
             Target.vsx_type,
             Target.vsx_period,

@@ -859,6 +859,23 @@ to that Proposal, or to `/` when nothing is queued, and an
 invalid one gets the whole page back. The edit fields show only while "Edit and approve" is
 chosen, by CSS `:has()`. Form posts need `python-multipart`.
 
+*Amended 2026-10-21 (NEU-1732):* `GET /targets/{id}` is the Target history page
+(`web/target.py`, `target.html`); an unknown id is a 404, and nothing on it edits anything. It
+shows the Target's VSX and Gaia columns, then one Light Curve row per survey in `Survey`'s
+order (status, points, BJD range, bands, fetch time), a survey without a `light_curve_files`
+row shown as "no data". The timeline lists, oldest first, each Analysis at its `finished_at`
+(its `created_at` when unset) with its Pipeline Version, each Proposal with its status now,
+each Review with its decision, edits and notes, and each Submission up to three times: when it
+was prepared (`created_at`), submitted (`submitted_at`) and given its Verdict (`verdict_at`),
+so a Verdict sits where it happened; only `accepted` and `rejected` are Verdicts, so a
+`needs_changes` Submission has no Verdict entry. A `queued` Proposal is placed no earlier
+than its Analysis, since a same-version rerun rewrites both in place but leaves the
+Proposal's `created_at`; a reviewed one stays before its Review. Events at one instant, as
+rows one transaction writes are, follow the pipeline's order (Analysis, Proposal, Review,
+Submission), then id. Review decisions read as the review form shows them (`DECISION_LABELS`
+in `web/review.py`). The queue rows and the evidence page link to it; the tracker (§9.1)
+links to it when it is built.
+
 ### 9.1 Submission tracker
 
 `submission/form.py` renders the VSX revision-form fields from the Proposal and Review.
