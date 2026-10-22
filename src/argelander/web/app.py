@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from argelander.config import Settings, get_settings
 from argelander.db.session import async_session_factory, create_async_engine
+from argelander.web.queue import QueueFilters, proposed_types, queue_page, status_counts
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
     @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(request, "index.html")
+    async def index(
+        request: Request, session: Session, filters: Annotated[QueueFilters, Query()]
+    ) -> HTMLResponse:
+        """The review queue. An htmx request from the filters or the pager gets the queue
+        region alone; a history restore, which htmx asks for when its cache misses, gets the
+        whole page."""
+        context: dict[str, object] = {
+            "queue": await queue_page(session, filters),
+            "filters": filters,
+        }
+        partial = (
+            "HX-Request" in request.headers and "HX-History-Restore-Request" not in request.headers
+        )
+        if not partial:
+            context |= {
+                "counts": await status_counts(session),
+                "types": await proposed_types(session),
+            }
+        name = "_queue.html" if partial else "index.html"
+        # One URL answers with a fragment or a page, so a cache must key on the header.
+        return templates.TemplateResponse(request, name, context, headers={"Vary": "HX-Request"})
 
     @app.get("/healthz")
     async def healthz(request: Request) -> JSONResponse:

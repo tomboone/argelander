@@ -803,6 +803,20 @@ bind already exists and it writes nothing. The
 `0.0.0.0` and published at `localhost:${API_PORT:-8000}` with `--reload`; there the
 sidecar sits behind a profile nothing activates.
 
+*Amended 2026-10-21 (NEU-1729):* `GET /` is the queue (`web/queue.py`): `queued` Proposals by
+Confidence descending, then id, so pages of 50 never overlap across ties. The header counts
+queued, approved, rejected and superseded Proposals; only queued ones are listed. A Proposal
+is blended when its Analysis has any contamination (`analyses.blend`'s `contaminations` is
+non-empty, ZTF's zero-point flag included); an Analysis without blend checks is not. Its
+surveys with data are the keys of `analyses.inputs`, the `ok` rows the analyzer read. The
+filters are the query parameters `type`, `min_confidence` (0 to 1) and `blend` (`yes`/`no`);
+a blank one is no filter and a bad one is a 422. The filter form and the pager swap the
+`_queue.html` region, whose rows are `_queue_row.html`, and push the URL; an htmx history
+restore gets the whole page, and the response varies on `HX-Request`. The pager's links are
+relative, since behind the tailnet sidecar the request's own scheme and host are not the
+page's. No index serves the sort: `tests/test_web_queue.py` holds the page under 500 ms with
+2,000 queued Proposals.
+
 ### 9.1 Submission tracker
 
 `submission/form.py` renders the VSX revision-form fields from the Proposal and Review.
@@ -988,6 +1002,10 @@ from the grilling session:
 
   *Amended 2026-10-21 (NEU-1717):* so is `tests/test_fetch_worker.py`, which drives fake
   fetchers through the worker against real Jobs; its mount-guard tests need no database.
+
+  *Amended 2026-10-21 (NEU-1729):* so is `tests/test_web_queue.py`, which seeds Proposals and
+  reads the queue through FastAPI's test client, and the root test in `tests/test_web.py` now
+  needs the database too, as the root is the queue.
 - Tests marked `live` hit archives and are skipped in CI (`-m "not live"`).
 - The prototype pass criterion is a test: derived periods match published values within
   0.1 % (or a recorded 2P relation) and negatives produce no Agreement.

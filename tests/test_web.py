@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from argelander.cli import app as cli
 from argelander.config import Settings
+from argelander.db.migrations import upgrade
 from argelander.logs import dict_config
 from argelander.web import app as web_app
 from argelander.web.app import Session, create_app
@@ -82,8 +83,12 @@ def test_the_session_dependency_gives_a_route_a_working_session(
         assert client.get("/probe").json() == 42
 
 
-def test_the_root_serves_the_base_layout_with_htmx_and_the_stylesheet(client: TestClient) -> None:
-    response = client.get("/")
+def test_the_root_serves_the_base_layout_with_htmx_and_the_stylesheet(
+    database_url: str, tmp_path: Path
+) -> None:
+    upgrade("head", database_url)  # the root is the queue, which reads the proposals
+    with _client(database_url, tmp_path) as client:
+        response = client.get("/")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")

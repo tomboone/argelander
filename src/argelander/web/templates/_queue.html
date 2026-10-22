@@ -1,0 +1,39 @@
+{# The queue region: what the filters and the pager swap. #}
+<section id="queue">
+  <p class="muted">{{ queue.total }} queued Proposal{{ "" if queue.total == 1 else "s" }} match.</p>
+  <table class="queue">
+    <thead>
+      <tr>
+        <th>VSX name</th>
+        <th>VSX type</th>
+        <th class="number">VSX period (d)</th>
+        <th>Proposed type</th>
+        <th class="number">Proposed period (d)</th>
+        <th class="number">Confidence</th>
+        <th>Blend</th>
+        <th>Surveys</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in queue.rows %}
+        {% include "_queue_row.html" %}
+      {% else %}
+        <tr><td colspan="8" class="muted">No queued Proposals match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if queue.pages > 1 %}
+    {# Relative links: behind the tailnet proxy the request's own scheme and host are not the page's. #}
+    <nav class="pager" hx-target="#queue" hx-swap="outerHTML" hx-push-url="true">
+      {% if queue.page > 1 %}
+        {% set previous = "/?" ~ request.url.include_query_params(page=queue.page - 1).query %}
+        <a href="{{ previous }}" hx-get="{{ previous }}">Previous</a>
+      {% endif %}
+      <span>Page {{ queue.page }} of {{ queue.pages }}</span>
+      {% if queue.page < queue.pages %}
+        {% set next = "/?" ~ request.url.include_query_params(page=queue.page + 1).query %}
+        <a href="{{ next }}" hx-get="{{ next }}">Next</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+</section>

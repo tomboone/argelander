@@ -54,3 +54,54 @@ a {
 .muted {
   color: var(--muted);
 }
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.count {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.queue {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.queue th,
+.queue td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.queue .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
