@@ -1,0 +1,2 @@
+# supercronic's crontab for the `backup` service. Local time: compose.yaml sets TZ.
+30 3 * * * argelander-backup
