@@ -11,11 +11,12 @@ says how it differs.
 ## 1. Bring the stack up
 
 ```sh
-task up        # postgres, app and jupyter; installs the git hooks
+task up        # postgres, app, api and jupyter; installs the git hooks
 task migrate   # argelander db-upgrade: Alembic to head
 ```
 
-The workers are not started by `task up`: they sit behind the `workers` Compose profile so
+The review app is at `http://localhost:8000` (`API_PORT`), and reloads on edits. The
+workers are not started by `task up`: they sit behind the `workers` Compose profile so
 nothing fetches until a run is meant.
 
 ## 2. Select a Slice
@@ -219,8 +220,7 @@ task down           # everything; the postgres volume is kept
 
 `compose.yaml` alone is the prod stack (spec §10): `postgres`, `fetcher` and `analyzer`
 from the prod image, each with a memory limit (1 GB, 1 GB, 3 GB) and `restart:
-unless-stopped`, plus `api` (512 MB) behind the `api` profile until the review app's `web`
-command exists. Postgres keeps its data on a named volume on the internal disk; the
+unless-stopped`, plus `api` (512 MB) and its `tailscale` sidecar (128 MB). Postgres keeps its data on a named volume on the internal disk; the
 Cache, the plots and the astropy download cache live on the USB SSD. The mini's `.env`
 needs two variables, plus a third for the first start of the review app:
 
@@ -272,9 +272,9 @@ docker compose up -d fetcher analyzer
 docker stats --no-stream      # each service's limit shows in MEM USAGE / LIMIT
 ```
 
-The review app (`api`) and its `tailscale` sidecar share the `api` profile and come up
-together with `docker compose --profile api up -d tailscale api`; the app is reachable only
-on the personal tailnet, at `http://argelander:8000`. `deploy/tailscale.md` has the auth
+The review app (`api`) and its `tailscale` sidecar come up with the rest of the stack
+(`docker compose up -d tailscale api` starts them alone); the app is reachable only on the
+personal tailnet, at `http://argelander:8000`. `deploy/tailscale.md` has the auth
 key, the ACLs, the checks, and what to do when the sidecar restarts on its own or loses its
 state volume.
 

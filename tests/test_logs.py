@@ -2,9 +2,12 @@
 
 import json
 import logging
+import logging.config
 import sys
 
-from argelander.logs import JsonFormatter
+import pytest
+
+from argelander.logs import JsonFormatter, dict_config
 
 
 def _format(record: logging.LogRecord) -> dict[str, object]:
@@ -40,3 +43,25 @@ def test_a_traceback_is_kept_inside_the_one_line() -> None:
 
     assert "\n" not in line
     assert "ValueError: boom" in json.loads(line)["exception"]
+
+
+def test_uvicorns_colour_copy_of_the_message_is_dropped() -> None:
+    record = logging.makeLogRecord({"msg": "Uvicorn running", "color_message": "\x1b[1mUvicorn"})
+
+    assert "color_message" not in _format(record)
+
+
+def test_dict_config_sends_uvicorns_records_to_stdout_as_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = logging.getLogger()
+    saved = root.handlers[:], root.level
+    try:
+        logging.config.dictConfig(dict_config())
+        logging.getLogger("uvicorn.error").info("Uvicorn running")
+    finally:
+        root.handlers[:], root.level = saved
+
+    entry = json.loads(capsys.readouterr().out)
+    assert entry["logger"] == "uvicorn.error"
+    assert entry["message"] == "Uvicorn running"

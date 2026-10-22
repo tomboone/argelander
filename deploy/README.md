@@ -8,7 +8,7 @@ Tom runs the one-time host steps below by hand, since they need `sudo`.
 | Piece | Where |
 | --- | --- |
 | Checkout | `~/argelander` on the mini, on `main`, cloned over HTTPS (the repo is public, so no deploy key) |
-| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, the backup's restic and B2 settings, later `TS_AUTHKEY` once and `COMPOSE_PROFILES` |
+| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, the backup's restic and B2 settings, and `TS_AUTHKEY` once |
 | Postgres data | the `argelander_postgres-data` named volume, on the internal SSD |
 | Its nightly backup | restic to Backblaze B2: `deploy/restore.md` |
 | The USB SSD | the 2 TB Samsung T7, `UUID=0e995573-d89e-44d3-8473-65ee5aa3e296`, mounted at `/mnt/music` and shared with Navidrome and the Kumas |
@@ -151,7 +151,7 @@ from bringing the prod stack up on the laptop. Then it runs, against `compose.ya
 | Step | Why |
 | --- | --- |
 | `git pull --ff-only` | A checkout that has diverged from `origin/main` stops the deploy rather than merging |
-| `docker compose pull --ignore-buildable` | Newer `postgres:16` (and `tailscale/tailscale:stable`, once its profile is active) |
+| `docker compose pull --ignore-buildable` | Newer `postgres:16` and `tailscale/tailscale:stable` |
 | `docker compose build --pull` | The prod image, on a freshly pulled `python:3.12-slim`, and the backup image on `debian:trixie-slim` |
 | `docker compose run --rm fetcher argelander db-upgrade` | Migrates before the new workers start; starts Postgres first if it is down |
 | `docker compose up -d --remove-orphans` | Recreates whatever changed; drops containers of services removed from `compose.yaml` |
@@ -160,11 +160,11 @@ from bringing the prod stack up on the laptop. Then it runs, against `compose.ya
 The deploy reads the Taskfile before it pulls, so a change to the `deploy` task itself
 takes effect on the deploy after the one that brings it.
 
-Until M6, `tailscale` and `api` sit behind the `api` profile, so the deploy neither builds
-nor starts them, and leaves them alone if they were started by hand: Compose does not
-count a service of an inactive profile as an orphan. Once the `web` command exists, either
-drop the profile from both services (spec §10) or add `COMPOSE_PROFILES=api` to the mini's
-`.env`, which Compose reads, so every deploy keeps them current.
+The deploy starts the review app and its `tailscale` sidecar with the rest. The sidecar
+needs `TS_AUTHKEY` in `.env` the first time, before it has a node key (`deploy/tailscale.md`).
+With the T7 unplugged, the deploy's `up -d` fails on the api, whose `${USB_ROOT}/plots` bind
+has no source: the workers still start and log the missing Cache marker, but the task exits
+non-zero. Plug the SSD back in and deploy again.
 
 To roll back, revert the change on `main` and deploy again; the deploy only ever moves the
 checkout forward.

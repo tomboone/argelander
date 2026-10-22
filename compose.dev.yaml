@@ -74,6 +74,32 @@ services:
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-argelander}
 
+  # The review app on the app image and mount, published on localhost instead of the tailnet:
+  # http://localhost:${API_PORT:-8000}. It listens on 0.0.0.0 inside the container so the
+  # published port reaches it, and reloads on edits.
+  api:
+    build: !reset null
+    image: argelander:dev
+    command: ["argelander", "web", "--host", "0.0.0.0", "--reload"]
+    network_mode: !reset null
+    restart: "no"
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+    environment: *dev-environment
+    volumes: !override
+      - .:/app
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    healthcheck:
+      disable: true
+
+  # The dev api is on localhost, so the sidecar has nothing to carry and no auth key. Behind a
+  # profile nothing activates, so `task up` leaves it stopped.
+  tailscale:
+    profiles: [tailscale]
+    restart: "no"
+
   jupyter:
     build:
       context: .

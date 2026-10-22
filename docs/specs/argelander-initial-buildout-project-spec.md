@@ -789,6 +789,20 @@ FastAPI + Jinja2 + htmx, no auth beyond the tailnet (grilling decision). Routes:
 Templates are server-rendered; htmx swaps the review form and queue rows. Static assets
 (htmx, a small CSS file) are vendored, no build step.
 
+*Amended 2026-10-21 (NEU-1728):* `web/app.py`'s `create_app()` builds the app; `argelander
+web` serves it with uvicorn on `127.0.0.1:8000` (§10, NEU-1724), not the ticket's
+`0.0.0.0`. `/healthz` answers 200 or 503 within five seconds, so a hung Postgres reads as
+down rather than a timeout: the ping is a task the request stops waiting for, because
+psycopg's cancel on a pooled connection to a frozen server outlasts the timeout. The app logs one JSON line per request (method, path, status,
+duration) and turns uvicorn's access log off; uvicorn gets the JSON setup as its
+`log_config`, the one form that reaches `--reload`'s server process. htmx is 2.0.11. The
+app creates `PLOTS_DIR` when it is missing, for a fresh dev checkout; in prod the read-only
+bind already exists and it writes nothing. The
+`api` profile is gone from `compose.yaml`, so `task deploy` runs the api and its sidecar.
+`compose.dev.yaml` has its own `api` on the app image, with no sidecar, listening on
+`0.0.0.0` and published at `localhost:${API_PORT:-8000}` with `--reload`; there the
+sidecar sits behind a profile nothing activates.
+
 ### 9.1 Submission tracker
 
 `submission/form.py` renders the VSX revision-form fields from the Proposal and Review.
@@ -948,6 +962,8 @@ from the grilling session:
   `ssh kumadrome`. A service in an inactive profile is not an orphan to `--remove-orphans`,
   so the deploy leaves `tailscale` and `api` alone until `COMPOSE_PROFILES=api` is set or
   the profile is dropped.
+  *Amended 2026-10-21 (NEU-1728):* the `api` profile the amendments above describe is gone;
+  §9 has the review app's Compose changes.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks
   `/healthz` over the tailnet; the backup job logs success/failure. No error tracker.
 
