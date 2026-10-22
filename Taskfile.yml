@@ -12,10 +12,11 @@ vars:
 
 tasks:
   up:
-    desc: Build and start the dev stack (postgres, app, jupyter), then install the git hooks
+    desc: Build and start the dev stack (postgres, app, api, jupyter), then install the git hooks
     cmds:
       - "{{.COMPOSE}} up --detach --build --wait"
       - task: hooks
+      - 'echo "Review app: http://localhost:${API_PORT:-8000}"'
       - 'echo "JupyterLab: http://localhost:${JUPYTER_PORT:-8888}/lab"'
 
   down:

@@ -127,11 +127,9 @@ services:
   # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
   # connection to 127.0.0.1 in the namespace, where the api listens on 8000. Nothing is
   # published, so the port is closed to the LAN and to the host; `web` binds 127.0.0.1, not
-  # 0.0.0.0, so it is closed on the namespace's Compose-network address too. Shares the api's
-  # profile, so it joins the tailnet only once there is something to serve.
+  # 0.0.0.0, so it is closed on the namespace's Compose-network address too.
   tailscale:
     image: tailscale/tailscale:stable
-    profiles: [api]
     restart: unless-stopped
     mem_limit: 128m
     environment:
@@ -147,14 +145,12 @@ services:
       - tailscale-state:/var/lib/tailscale
     logging: *logging
 
-  # The review app reads Postgres and serves the plots, read-only. Behind the `api` profile
-  # until the `web` command exists (M6): drop the profile from both services then. It is
-  # reached only on the tailnet, at http://argelander:8000, through the tailscale sidecar's
-  # network namespace. It mounts only the plots, so the astropy cache stays at the image's
-  # writable default.
+  # The review app reads Postgres and serves the plots, read-only. It is reached only on the
+  # tailnet, at http://argelander:8000, through the tailscale sidecar's network namespace;
+  # Uptime Kuma watches its /healthz there (NEU-1727). It mounts only the plots, so the
+  # astropy cache stays at the image's writable default.
   api:
     <<: *app
-    profiles: [api]
     command: ["argelander", "web"]
     mem_limit: 512m
     network_mode: service:tailscale

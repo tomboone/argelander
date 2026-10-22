@@ -21,10 +21,10 @@ clients fall back to the IPv4 address.)
 | Node key | The `tailscale-state` named volume (`argelander_tailscale-state` on the host), internal disk |
 | Auth key, tags | `TS_AUTHKEY` and `TS_EXTRA_ARGS` in the mini's `.env`, both blank by default |
 
-Both services sit behind the `api` profile until the review app's `web` command exists
-(M6), so `docker compose up -d` leaves them stopped and the node does not join the tailnet
-before there is anything to serve. Until the profile is dropped, add `--profile api` to
-every command below.
+Both services are part of the prod stack, so `task deploy` starts them and keeps them
+current. Without a node key on the state volume and without `TS_AUTHKEY`, the sidecar waits
+for an interactive login and prints its URL in its logs, so put the auth key in `.env`
+before the first deploy that starts it (*First start* below).
 
 ## First start
 
@@ -41,8 +41,8 @@ every command below.
 3. Start the sidecar and the app:
 
    ```sh
-   docker compose --profile api up -d tailscale api
-   docker compose --profile api exec tailscale tailscale status | head -1
+   docker compose up -d tailscale api
+   docker compose exec tailscale tailscale status | head -1
    ```
 
    The first line shows `argelander` with its `100.x` address.
@@ -99,7 +99,7 @@ up -d` does not repair it, because the api's configuration has not changed. Rest
 api, which rejoins the sidecar's current namespace:
 
 ```sh
-docker compose --profile api restart api
+docker compose restart api
 ```
 
 Only a check that comes in over the tailnet notices this, such as the `/healthz` monitor
@@ -138,7 +138,7 @@ the volume holds only the node identity.
 3. Recreate the pair, so the sidecar reads the key and the api joins its namespace:
 
    ```sh
-   docker compose --profile api up -d --force-recreate tailscale api
+   docker compose up -d --force-recreate tailscale api
    ```
 
 4. Blank `TS_AUTHKEY=`, disable key expiry on the new node, and run *Check it*. The node

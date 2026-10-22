@@ -243,6 +243,43 @@ def recompute_status() -> None:
     typer.echo(f"changed {len(changes)} Targets")
 
 
+@app.command()
+def web(
+    host: Annotated[
+        str,
+        typer.Option(
+            help="Address to listen on. Prod keeps loopback, where the tailscale sidecar hands "
+            "it tailnet connections (deploy/tailscale.md); the dev stack listens on 0.0.0.0 to "
+            "publish the port."
+        ),
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+    reload: Annotated[
+        bool, typer.Option("--reload", help="Restart on source changes (dev only).")
+    ] = False,
+) -> None:
+    """Serve the review app with uvicorn."""
+    # Imported here so `version` and --help never load uvicorn; it imports the app, and with it
+    # FastAPI and SQLAlchemy, only once it is serving.
+    import uvicorn
+
+    from argelander.logs import dict_config
+
+    # uvicorn applies log_config in every process it starts, so the JSON lines survive
+    # --reload's server subprocess, where a configure_logging() here would not reach. Its
+    # access log is off because the app logs each request itself, with the fields as JSON
+    # (argelander.web.app).
+    uvicorn.run(
+        "argelander.web.app:create_app",
+        factory=True,
+        host=host,
+        port=port,
+        reload=reload,
+        log_config=dict_config(),
+        access_log=False,
+    )
+
+
 @app.command("db-upgrade")
 def db_upgrade() -> None:
     """Apply database migrations up to the newest revision."""
