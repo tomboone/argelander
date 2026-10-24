@@ -27,11 +27,24 @@ _Avoid_: photometry, data, time series
 The on-disk Parquet store of raw Light Curves, keyed by survey and source ID.
 Re-downloadable; never the system of record.
 
+**Cache marker**:
+The empty `.argelander-cache` file in the Cache's directory on the USB SSD. The fetch and
+analyze workers refuse to start without it, so an unmounted SSD cannot leave the Cache on
+the boot disk.
+
+**Zero-point offset**:
+The constant magnitude difference between two ZTF fields' measurements of the same
+Target, compared at equal phase of its cycle. A large one means a neighbour's light
+sits in one field's photometry and not the other's; a difference between raw medians
+is not one, since a variable star's fields sample its cycle unevenly.
+_Avoid_: calibration error, field offset
+
 ### Analysis
 
 **Analysis**:
 The derived quantities for one Target from one pipeline version: periodograms,
-candidate periods per survey, alias tests, blend check, colour-magnitude position.
+candidate periods per survey, alias tests, blend check, colour-magnitude position, the
+light curve's shape at the agreed period, and how far it varies beyond its errors.
 _Avoid_: result, run output
 
 **Pipeline Version**:
@@ -41,7 +54,8 @@ _Avoid_: version, revision
 
 **Agreement**:
 The condition for accepting a period: at least two independent sources among
-ZTF g, ZTF r, ASAS-SN, TESS and Gaia's published period agree after alias tests.
+ZTF g, ZTF r, ASAS-SN, TESS and Gaia's published period agree after alias tests. A
+source from a survey the blend check finds contaminated counts as half a source.
 _Avoid_: consensus, match
 
 ### Proposals and review

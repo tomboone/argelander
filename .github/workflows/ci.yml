@@ -3,7 +3,8 @@ name: CI
 # Lint, format, typecheck, offline tests, the Alembic single-head check and the image build
 # (spec §11). Runs on a GitHub-hosted runner straight from uv, not inside the built image:
 # that would be slower for no extra coverage at this stage. Tests marked `live` hit the
-# archives and never run here.
+# archives and never run here. Tests marked `gate` (the prototype gate) run in the `gate`
+# job alongside `ci`, because they take over ten minutes on a hosted runner.
 
 on:
   push:
@@ -15,13 +16,36 @@ on:
 permissions:
   contents: read
 
+# A newer push to a PR cancels its older run. Each push to main gets a group of its own, so a
+# second merge inside the gate's ten minutes cannot drop the first one's run (GitHub keeps only
+# one pending run per group).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    # tests/test_db.py migrates a throwaway database beside this one and checks the models
+    # against the migrations (`alembic check`), so the job needs a real Postgres.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: argelander
+          POSTGRES_PASSWORD: argelander
+          POSTGRES_DB: argelander
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U argelander -d argelander"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://argelander:argelander@localhost:5432/argelander
 
     steps:
       - uses: actions/checkout@v7
@@ -45,11 +69,9 @@ jobs:
         run: uv run ty check
 
       - name: Test
-        run: uv run pytest -m "not live"
+        run: uv run pytest -m "not live and not gate"
 
       - name: Alembic single-head check
-        # Skips until the migrations directory exists (spec §3.1).
-        if: hashFiles('src/argelander/alembic/env.py') != ''
         run: |
           out=$(uv run alembic heads)
           heads=$(printf '%s\n' "$out" | grep -c '(head)' || true)
@@ -61,3 +83,57 @@ jobs:
 
       - name: Docker build
         run: docker build --tag argelander:ci .
+
+      - name: Backup image build
+        # Otherwise its first build is on the mini, at deploy time (deploy/restore.md).
+        run: docker build --tag argelander-backup:ci deploy/backup
+
+  gate:
+    # The prototype gate (spec §11): every fixture star through the pipeline. On a PR it runs
+    # only when something it could catch has changed. The job itself always runs and reports,
+    # so a docs-only PR still gets a green `gate` check: a skipped or missing check would block
+    # a required-check rule and /mergeit's CI gate alike (NEU-1838).
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history, so the PR's merge base with its target is present.
+          fetch-depth: 0
+
+      - name: Decide whether the science can have changed
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "A $EVENT event always runs the gate."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # What the gate's result can depend on: the package, the fixtures, the gate test
+          # and its conftest, and the dependencies.
+          paths="src tests/fixtures tests/test_prototype.py tests/conftest.py pyproject.toml uv.lock"
+          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" -- $paths)
+          if [ -n "$changed" ]; then
+            echo "Running the gate; this PR changes:"
+            echo "$changed"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping the gate: this PR changes none of: $paths"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install uv
+        if: steps.scope.outputs.run == 'true'
+        uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Sync dependencies
+        if: steps.scope.outputs.run == 'true'
+        run: uv sync --locked
+
+      - name: Prototype gate
+        if: steps.scope.outputs.run == 'true'
+        # -v names each star's case in the log.
+        run: uv run pytest -m gate -v

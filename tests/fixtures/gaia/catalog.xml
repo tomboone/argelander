@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with astropy.io.votable version 8.0.2
+     http://www.astropy.org/ -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/VOTable-1.4.xsd">
+ <RESOURCE type="results">
+  <TABLE>
+   <FIELD ID="source_id" datatype="long" name="source_id" ucd="meta.id">
+    <DESCRIPTION>
+     Unique source identifier (unique within a particular Data
+     Release)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="ra" datatype="double" name="ra" ucd="pos.eq.ra;meta.main" unit="deg" utype="stc:AstroCoords.Position3D.Value3.C1">
+    <DESCRIPTION>
+     Right ascension
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="dec" datatype="double" name="dec" ucd="pos.eq.dec;meta.main" unit="deg" utype="stc:AstroCoords.Position3D.Value3.C2">
+    <DESCRIPTION>
+     Declination
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="phot_g_mean_mag" datatype="float" name="phot_g_mean_mag" ucd="phot.mag;em.opt" unit="mag">
+    <DESCRIPTION>
+     G-band mean magnitude
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="bp_rp" datatype="float" name="bp_rp" ucd="phot.color;em.opt.B;em.opt.R" unit="mag">
+    <DESCRIPTION>
+     BP - RP colour
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="parallax" datatype="double" name="parallax" ucd="pos.parallax.trig" unit="mas">
+    <DESCRIPTION>
+     Parallax
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="parallax_error" datatype="float" name="parallax_error" ucd="stat.error;pos.parallax.trig" unit="mas">
+    <DESCRIPTION>
+     Standard error of parallax
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="ruwe" datatype="float" name="ruwe" ucd="stat.error">
+    <DESCRIPTION>
+     Renormalised unit weight error
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="vari_summary_id" datatype="long" name="vari_summary_id" ucd="meta.id;meta.main">
+    <DESCRIPTION>
+     Unique source identifier
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="trimmed_range_mag_g_fov" datatype="float" name="trimmed_range_mag_g_fov" ucd="phot.mag;em.opt;arith.diff" unit="mag">
+    <DESCRIPTION>
+     Trimmed difference between the highest and lowest G FoV
+     magnitudes
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="best_class_name" arraysize="*" datatype="char" name="best_class_name" ucd="meta.code.class">
+    <DESCRIPTION>
+     Name of best class, see table
+     \texttt{VariClassifierClassDefinition} for details of the class
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="best_class_score" datatype="float" name="best_class_score" ucd="meta.code.qual">
+    <DESCRIPTION>
+     Score of the best class
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="rr_pf" datatype="double" name="rr_pf" ucd="src.var;time.period" unit="d">
+    <DESCRIPTION>
+     Period corresponding to the fundamental pulsation mode in the G
+     band time series
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="rr_p1_o" datatype="double" name="rr_p1_o" ucd="src.var;time.period" unit="d">
+    <DESCRIPTION>
+     Period corresponding to the first overtone pulsation mode in the
+     G band time series
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="rr_class" arraysize="*" datatype="char" name="rr_class" ucd="meta.code.class;src.class">
+    <DESCRIPTION>
+     Best RR Lyrae classification estimate out of: {`RRc, `RRab, `RRd}
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="cep_pf" datatype="double" name="cep_pf" ucd="src.var;time.period" unit="d">
+    <DESCRIPTION>
+     Period corresponding to the fundamental pulsation mode in the G
+     band time series
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="cep_p1_o" datatype="double" name="cep_p1_o" ucd="src.var;time.period" unit="d">
+    <DESCRIPTION>
+     Period corresponding to the first overtone pulsation mode in the
+     G band time series
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="cep_p2_o" datatype="double" name="cep_p2_o" ucd="src.var;time.period" unit="d">
+    <DESCRIPTION>
+     Period corresponding to the second overtone pulsation mode (for
+     multi mode pulsators) in  the G band time series
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="cep_type" arraysize="*" datatype="char" name="cep_type" ucd="meta.code.class;src.class">
+    <DESCRIPTION>
+     Best type classification estimate out of: `DCEP, `T2CEP, `ACEP
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="eb_frequency" datatype="double" name="eb_frequency" ucd="src.orbital" unit="d**-1">
+    <DESCRIPTION>
+     Frequency of geometric model of the eclipsing binary light curve
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="st_frequency" datatype="double" name="st_frequency" ucd="src.var;time.period" unit="d**-1">
+    <DESCRIPTION>
+     Frequency search result for either G CCD, G FoV, BP or RP
+     photometry
+    </DESCRIPTION>
+   </FIELD>
+   <DATA>
+    <TABLEDATA>
+     <TR>
+      <TD>1422733312942999424</TD>
+      <TD>267.9935263254942</TD>
+      <TD>58.413357230473814</TD>
+      <TD>13.039571</TD>
+      <TD>0.75447273</TD>
+      <TD>1.3093316013327967</TD>
+      <TD>0.010660914</TD>
+      <TD>1.0157422</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+     </TR>
+     <TR>
+      <TD>1418010841782026880</TD>
+      <TD>264.7819703243272</TD>
+      <TD>55.01459442818476</TD>
+      <TD>14.686913</TD>
+      <TD>0.55539703</TD>
+      <TD>0.12995814215902426</TD>
+      <TD>0.01627975</TD>
+      <TD>1.1783116</TD>
+      <TD>1418010841782026880</TD>
+      <TD>1.0463868</TD>
+      <TD>RR</TD>
+      <TD>0.97321844</TD>
+      <TD>0.4858648273401035</TD>
+      <TD/>
+      <TD>RRab</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+     </TR>
+     <TR>
+      <TD>1440307936865442176</TD>
+      <TD>260.34700270093936</TD>
+      <TD>62.774251681789316</TD>
+      <TD>13.117592</TD>
+      <TD>0.9607115</TD>
+      <TD>0.9583377791871127</TD>
+      <TD>0.010343606</TD>
+      <TD>1.0627465</TD>
+      <TD>1440307936865442176</TD>
+      <TD>0.47083148</TD>
+      <TD>ECL</TD>
+      <TD>0.8408304</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD>0.043346641340396765</TD>
+      <TD/>
+     </TR>
+     <TR>
+      <TD>1435149135683337216</TD>
+      <TD>269.63654843690836</TD>
+      <TD>60.41020589100362</TD>
+      <TD>14.136243</TD>
+      <TD>0.6390066</TD>
+      <TD>0.7695342275970738</TD>
+      <TD>0.017618384</TD>
+      <TD>1.3768686</TD>
+      <TD>1435149135683337216</TD>
+      <TD>0.5881003</TD>
+      <TD>ECL</TD>
+      <TD>0.9865277</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD>1.663522104487205</TD>
+      <TD/>
+     </TR>
+     <TR>
+      <TD>1440250422959420800</TD>
+      <TD>263.2479489811614</TD>
+      <TD>63.39376153103551</TD>
+      <TD>13.50496</TD>
+      <TD>0.83376884</TD>
+      <TD>0.9570595474072178</TD>
+      <TD>0.011977918</TD>
+      <TD>1.0040487</TD>
+      <TD>1440250422959420800</TD>
+      <TD>0.03162075</TD>
+      <TD>ECL</TD>
+      <TD>0.685022</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD>0.21882201855980346</TD>
+      <TD>15.320459997565639</TD>
+     </TR>
+     <TR>
+      <TD>1438034941388614528</TD>
+      <TD>255.89114721667306</TD>
+      <TD>60.81388991304765</TD>
+      <TD>13.383619</TD>
+      <TD>0.3328123</TD>
+      <TD>0.6867414441593571</TD>
+      <TD>0.010395555</TD>
+      <TD>1.0733309</TD>
+      <TD>1438034941388614528</TD>
+      <TD>0.04281489</TD>
+      <TD>DSCT|GDOR|SXPHE</TD>
+      <TD>0.88983124</TD>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD/>
+      <TD>19.87277222240256</TD>
+     </TR>
+    </TABLEDATA>
+   </DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

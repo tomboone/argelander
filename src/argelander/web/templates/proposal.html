@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.target.vsx_name }}: Proposal {{ page.proposal.id }} · Argelander{% endblock %}
+
+{% block content %}
+  {# A number in `spec`, or a dash for none: JSONB stores NaN as null (spec §4). #}
+  {% macro num(value, spec="%.7g") %}{{ spec|format(value) if value is not none else "—" }}{% endmacro %}
+  {% set p, t, a = page.proposal, page.target, page.analysis %}
+
+  <nav class="steps">
+    <a href="/">Queue</a>
+    <a href="/targets/{{ t.id }}">History</a>
+    {% if page.previous_id %}<a href="/proposals/{{ page.previous_id }}" rel="prev">Previous</a>{% endif %}
+    {% if page.next_id %}<a href="/proposals/{{ page.next_id }}" rel="next">Next</a>{% endif %}
+  </nav>
+
+  <h1>{{ t.vsx_name }}</h1>
+  <p class="muted">
+    Proposal {{ p.id }}, {{ p.status.value }}, Pipeline Version {{ p.pipeline_version }};
+    VSX OID {{ t.vsx_oid }}, Gaia DR3 {{ t.gaia_source_id }}.
+    {% if p.superseded_by %}Superseded by <a href="/proposals/{{ p.superseded_by }}">Proposal {{ p.superseded_by }}</a>.{% endif %}
+    {% if page.newest_id and page.newest_id != p.superseded_by %}The Target's newest is <a href="/proposals/{{ page.newest_id }}">Proposal {{ page.newest_id }}</a>.{% endif %}
+  </p>
+
+  {% if page.no_agreement %}
+    <div class="alert" role="alert">
+      <strong>No Agreement.</strong> {{ page.no_agreement }}
+    </div>
+  {% endif %}
+
+  <section>
+    <h2>Proposal and VSX</h2>
+    <table class="fields">
+      <thead><tr><th>Field</th><th>Proposed</th><th>VSX now</th></tr></thead>
+      <tbody>
+        {# VSX marks an uncertain type with a trailing colon. #}
+        <tr><th>Type</th><td>{{ p.proposed_type }}{{ ":" if p.uncertain }}</td><td>{{ t.vsx_type or "—" }}</td></tr>
+        <tr><th>Period (d)</th><td class="number">{{ num(p.period) }}</td><td class="number">{{ num(t.vsx_period) }}</td></tr>
+        <tr><th>Maximum</th><td class="number">{{ num(p.mag_max, "%.2f") }}</td><td class="number">{{ num(t.vsx_mag_max, "%.2f") }}</td></tr>
+        <tr>
+          <th>Minimum</th>
+          <td class="number">{{ num(p.mag_min, "%.2f") }}{{ " (amplitude)" if p.min_is_amplitude }}</td>
+          <td class="number">{{ num(t.vsx_mag_min, "%.2f") }}{{ " (amplitude)" if t.vsx_mag_min_is_amplitude }}</td>
+        </tr>
+        <tr><th>Band</th><td>{{ p.band or "—" }}</td><td>{{ t.vsx_band or "—" }}</td></tr>
+        <tr><th>Epoch (BJD)</th><td class="number">{{ num(p.epoch_bjd, "%.5f") }}</td><td class="muted">—</td></tr>
+        <tr><th>Eclipse or rise (% of period)</th><td class="number">{{ num(p.eclipse_duration_pct, "%.1f") }}</td><td class="muted">—</td></tr>
+        <tr><th>Confidence</th><td class="number">{{ num(p.confidence, "%.3f") }}</td><td class="muted">—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  {% if page.earlier %}
+    {% set e = page.earlier %}
+    <section class="diff">
+      <h2>Changes from <a href="/proposals/{{ e.id }}">Proposal {{ e.id }}</a> ({{ e.status.value }})</h2>
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Proposal {{ e.id }}</th><th>This Proposal</th></tr></thead>
+        <tbody>
+          {% for change in page.diff %}
+            <tr{% if change.changed %} class="changed"{% endif %}>
+              <th>{{ change.label }}</th><td>{{ change.earlier }}</td><td>{{ change.current }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  {% include "_review_form.html" %}
+
+  <section>
+    <h2>Plots</h2>
+    {% if page.plots %}
+      <div class="plots">
+        {% for kind, path in page.plots %}
+          <figure>
+            <a href="/plots/{{ path|urlencode }}"><img src="/plots/{{ path|urlencode }}" alt="{{ kind }}" loading="lazy"></a>
+            <figcaption>{{ kind }}</figcaption>
+          </figure>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No plots drawn.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Agreement</h2>
+    {% if a.agreement %}
+      {% set relation = a.agreement_relation.value if a.agreement_relation else "—" %}
+      <p>{{ a.agreed_sources|join(", ") }} agree on {{ num(a.agreed_period) }} d ({{ relation }}, tolerance {{ num(a.agreement_tolerance, "%.2g") }}).</p>
+    {% else %}
+      <p>None: no two sources agree on a period.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    {% for group in page.evidence %}
+      <h3>{{ group.type_code }} <span class="muted">Confidence {{ "%.3f"|format(group.confidence) }}</span></h3>
+      <table class="evidence">
+        <thead><tr><th>Rule</th><th>Stance</th><th class="number">Weight</th><th>Explanation</th></tr></thead>
+        <tbody>
+          {% for item in group.items %}
+            <tr class="{{ item.verdict }}">
+              <td>{{ item.rule }}</td><td>{{ item.verdict }}</td>
+              <td class="number">{{ "%.2f"|format(item.weight) }}</td><td>{{ item.explanation }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No Evidence.</p>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>Surveys</h2>
+    {% for survey, input in (a.inputs or {})|dictsort %}
+      <h3>{{ survey }}</h3>
+      <p class="muted">
+        {{ input.n_points }} points, BJD {{ num(input.t_min_bjd, "%.1f") }} to {{ num(input.t_max_bjd, "%.1f") }},
+        bands {{ (input.bands or [])|join(", ") or "—" }}.
+      </p>
+      {% for band, methods in ((a.periods or {})[survey] or {})|dictsort %}
+        <h4>{{ survey }} {{ band }}: top peaks</h4>
+        <table class="peaks">
+          <thead><tr><th>Method</th><th class="number">Period (d)</th><th class="number">Power</th><th class="number">FAP</th></tr></thead>
+          <tbody>
+            {% for method, search in methods|dictsort %}
+              {% if search.insufficient %}
+                <tr><td>{{ method }}</td><td colspan="3" class="muted">insufficient ({{ search.n_points }} points)</td></tr>
+              {% else %}
+                {% for peak in search.peaks %}
+                  <tr>
+                    <td>{{ method if loop.first }}</td>
+                    <td class="number">{{ num(peak.period) }}</td>
+                    <td class="number">{{ num(peak.power, "%.3g") }}</td>
+                    <td class="number">{{ num(peak.false_alarm_probability, "%.2g") }}</td>
+                  </tr>
+                {% endfor %}
+                {% if search.gaia %}
+                  <tr class="muted">
+                    <td>{{ method }} at Gaia's period</td>
+                    <td class="number">{{ num(search.gaia.period) }}</td>
+                    <td class="number">{{ num(search.gaia.power, "%.3g") }}</td>
+                    <td class="number">{{ num(search.gaia.false_alarm_probability, "%.2g") }}</td>
+                  </tr>
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        {% set test = ((a.alias_tests or {})[survey] or {})[band] %}
+        {% if test %}
+          <h4>{{ survey }} {{ band }}: alias ranking <span class="muted">baseline {{ num(test.baseline, "%.1f") }} d</span></h4>
+          <table class="aliases">
+            <thead>
+              <tr>
+                <th class="number">Period (d)</th><th class="number">Candidate (d)</th><th>Relation</th>
+                <th class="number">Bins</th><th class="number">Scatter</th><th class="number">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hypothesis in test.ranking %}
+                <tr>
+                  <td class="number">{{ num(hypothesis.period) }}</td>
+                  <td class="number">{{ num(hypothesis.candidate) }}</td>
+                  <td>{{ hypothesis.relation }}</td>
+                  <td class="number">{{ hypothesis.bins }}</td>
+                  <td class="number">{{ num(hypothesis.scatter, "%.3f") }}</td>
+                  <td class="number">{{ num(hypothesis.score, "%.4g") }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="6" class="muted">No hypotheses: the band was insufficient.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <p class="muted">No survey had data.</p>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>Blend</h2>
+    {% if a.blend is none %}
+      <p class="muted">Not checked: no Gaia record.</p>
+    {% else %}
+      {% for c in a.blend.contaminations %}
+        <h3>{{ c.survey }}: {{ c.flag }}</h3>
+        <p>{{ c.remark }}</p>
+        <p class="muted">Light from other sources: {{ "%.0f%%"|format(c.flux_fraction * 100) if c.flux_fraction is not none else "not estimated" }}.</p>
+        {% if c.neighbours %}
+          <table class="neighbours">
+            <thead><tr><th>Gaia DR3</th><th class="number">Separation (″)</th><th class="number">G</th></tr></thead>
+            <tbody>
+              {% for n in c.neighbours %}
+                <tr><td>{{ n.source_id }}</td><td class="number">{{ num(n.separation, "%.1f") }}</td><td class="number">{{ num(n.g, "%.2f") }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% else %}
+        <p>No survey is contaminated.</p>
+      {% endfor %}
+      {% for z in a.blend.zero_points %}
+        <h3>ZTF {{ z.band }} Zero-point offsets{{ ": suspect" if z.suspect }}</h3>
+        <p class="muted">
+          Folded at {{ num(z.period) }} d against {{ z.reference_oid }}:
+          {% for oid, offset in z.offsets|dictsort %}{{ oid }} {{ "%+.3f"|format(offset) if offset is not none else "—" }} mag{{ ", " if not loop.last }}{% else %}no other oid{% endfor %}.
+        </p>
+      {% endfor %}
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>CMD</h2>
+    {% if a.cmd %}
+      <p>
+        BP−RP {{ num(a.cmd.bp_rp, "%.2f") }}, absolute G {{ num(a.cmd.abs_g, "%.2f") }},
+        distance {{ num(a.cmd.distance_pc, "%.0f") }} pc; region {{ a.cmd.region }}.
+      </p>
+    {% else %}
+      <p class="muted">No CMD position: no Gaia record.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Gaia DR3</h2>
+    <p>
+      Class {{ t.gaia_vari_class or "none" }}{% if t.gaia_vari_class_score is not none %} (score {{ "%.2f"|format(t.gaia_vari_class_score) }}){% endif %}
+      {%- if t.gaia_vari_detail and t.gaia_vari_detail.vari_subclass %}, subclass {{ t.gaia_vari_detail.vari_subclass }}{% endif %};
+      period {{ num(t.gaia_vari_period) }} d; G {{ num(t.gaia_g, "%.2f") }}, BP−RP {{ num(t.gaia_bp_rp, "%.2f") }}.
+    </p>
+  </section>
+{% endblock %}

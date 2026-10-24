@@ -1,30 +1,189 @@
-# Service definitions shared by every environment. compose.dev.yaml layers the dev stack on
-# top (`task up`); the prod services, USB mounts and memory limits arrive with NEU-1723.
-# No credentials here (spec §12): the dev file supplies dev ones, prod reads its Compose env.
+# The prod stack on the Mac mini (spec §10); compose.dev.yaml layers the dev stack on top
+# (`task up`). No credentials here (spec §12): POSTGRES_PASSWORD, USB_ROOT, TS_AUTHKEY and the
+# backup's restic and B2 settings come from the mini's .env. The first two have defaults that
+# fail loudly rather than being required with `:?`, which Compose checks per file before merging, so it would refuse the dev
+# stack too: an empty password stops Postgres initialising, and the placeholder USB_ROOT names
+# itself in the "bind source path does not exist" error. TS_AUTHKEY is blank after the first
+# start by design.
+#
+# The host is a 2011 Mac mini with 16 GB shared with Navidrome and Uptime Kuma, so every
+# service has a memory limit. Postgres stays on the internal SSD; the Cache, the plots and
+# the astropy download cache live on the USB SSD mounted at USB_ROOT.
 name: argelander
+
+# Rotated, so a chatty worker cannot fill the 256 GB boot disk. The services log JSON lines.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+# XDG_CACHE_HOME has to follow ASTRO_CACHE_DIR (see the Dockerfile).
+x-environment: &environment
+  DATABASE_URL: &database-url postgresql+psycopg://argelander:${POSTGRES_PASSWORD:-}@postgres:5432/argelander
+  CACHE_DIR: /usb/cache
+  PLOTS_DIR: /usb/plots
+  ASTRO_CACHE_DIR: /usb/astropy
+  XDG_CACHE_HOME: /usb/astropy
+
+# The workers get the SSD's mount point itself, not its subdirectories: with the SSD
+# unplugged, the mount point is an empty directory on the boot disk, so the workers still
+# start and their mount guard names the problem in their logs (no Cache marker), rather than
+# Docker refusing to create the container. create_host_path stops Docker making an empty
+# USB_ROOT on the boot disk when the path is wrong.
+x-usb: &usb
+  type: bind
+  source: ${USB_ROOT:-/USB_ROOT-is-not-set}
+  target: /usb
+  bind:
+    create_host_path: false
+
+# One image, one package (spec §3): each service is the prod image with its own command.
+x-app: &app
+  build:
+    context: .
+    target: prod
+  image: argelander:latest
+  init: true
+  restart: unless-stopped
+  environment: *environment
+  logging: *logging
+  depends_on:
+    postgres:
+      condition: service_healthy
 
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
+    mem_limit: 1g
     environment:
       POSTGRES_USER: argelander
       POSTGRES_DB: argelander
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    logging: *logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U argelander -d argelander"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  app:
-    build:
-      context: .
-      target: prod
-    image: argelander:latest
+  # The workers have no port to probe; healthy means the Cache marker is still readable, which
+  # turns unhealthy if the SSD drops out under a running worker.
+  fetcher:
+    <<: *app
+    command: ["argelander", "fetch-worker"]
+    mem_limit: 1g
+    volumes:
+      - *usb
+    healthcheck:
+      test: ["CMD-SHELL", "test -f \"$$CACHE_DIR/.argelander-cache\""]
+      interval: 1m
+      timeout: 5s
+
+  analyzer:
+    <<: *app
+    command: ["argelander", "analyze-worker"]
+    mem_limit: 3g
+    volumes:
+      - *usb
+    healthcheck:
+      test: ["CMD-SHELL", "test -f \"$$CACHE_DIR/.argelander-cache\""]
+      interval: 1m
+      timeout: 5s
+
+  # Nightly pg_dump into a restic repository on Backblaze B2, at 03:30 local (deploy/restore.md).
+  # Only Postgres is backed up: the Cache can be downloaded again and the plots redrawn. Its
+  # own image, not the app's. The repository and its credentials come from the mini's .env;
+  # without them the service refuses to start and says which are missing. pg_dump takes a
+  # libpq URL, so DATABASE_URL here has no `+psycopg` driver suffix, and no password: in the
+  # URL it would sit in pg_dump's arguments, which `ps` on the host shows. libpq reads
+  # PGPASSWORD instead.
+  backup:
+    build: deploy/backup
+    image: argelander-backup:latest
+    init: true
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TZ: America/New_York
+      DATABASE_URL: postgresql://argelander@postgres:5432/argelander
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - restic-cache:/var/cache/restic
+    logging: *logging
     depends_on:
       postgres:
         condition: service_healthy
 
+  # The api's network namespace: its own node, `argelander`, on the personal tailnet; the host
+  # is on no tailnet (deploy/tailscale.md). Userspace networking, like the mini's other
+  # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
+  # connection to 127.0.0.1 in the namespace, where the api listens on 8000. Nothing is
+  # published, so the port is closed to the LAN and to the host; `web` binds 127.0.0.1, not
+  # 0.0.0.0, so it is closed on the namespace's Compose-network address too.
+  tailscale:
+    image: tailscale/tailscale:stable
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      TS_HOSTNAME: argelander
+      # One-time auth key from the personal tailnet. Blank it once the state volume holds the
+      # node key.
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_AUTH_ONCE: "true"
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    logging: *logging
+
+  # The review app reads Postgres and serves the plots, read-only. It is reached only on the
+  # tailnet, at http://argelander:8000, through the tailscale sidecar's network namespace;
+  # Uptime Kuma watches its /healthz there (NEU-1727). It mounts only the plots, so the
+  # astropy cache stays at the image's writable default.
+  api:
+    <<: *app
+    command: ["argelander", "web"]
+    mem_limit: 512m
+    network_mode: service:tailscale
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # A restarted sidecar has a new namespace, so Compose restarts the api with it. A restart
+      # Compose does not make (a crash) strands the api; see deploy/tailscale.md.
+      tailscale:
+        condition: service_started
+        restart: true
+    environment:
+      DATABASE_URL: *database-url
+      PLOTS_DIR: /usb/plots
+    volumes:
+      - type: bind
+        source: ${USB_ROOT:-/USB_ROOT-is-not-set}/plots
+        target: /usb/plots
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"
+      interval: 1m
+      timeout: 10s
+
 volumes:
   postgres-data:
+  # The node key. Losing it means registering the node again (deploy/tailscale.md).
+  tailscale-state:
+  # restic's local copy of the repository index; disposable, rebuilt from B2 when missing.
+  restic-cache:

@@ -1,0 +1,11 @@
+<tr>
+  <td><a href="/proposals/{{ row.proposal_id }}">{{ row.vsx_name }}</a> <a class="muted" href="/targets/{{ row.target_id }}">history</a></td>
+  <td>{{ row.vsx_type or "—" }}</td>
+  <td class="number">{{ "%.7g"|format(row.vsx_period) if row.vsx_period is not none else "—" }}</td>
+  {# VSX marks an uncertain type with a trailing colon. #}
+  <td>{{ row.proposed_type }}{{ ":" if row.uncertain }}</td>
+  <td class="number">{{ "%.7g"|format(row.period) if row.period is not none else "—" }}</td>
+  <td class="number">{{ "%.3f"|format(row.confidence) }}</td>
+  <td>{{ row.blend_flags|join(", ") if row.blend_flags else "—" }}</td>
+  <td>{{ row.surveys|join(", ") if row.surveys else "—" }}</td>
+</tr>

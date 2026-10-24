@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with astropy.io.votable version 8.0.2
+     http://www.astropy.org/ -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/VOTable-1.4.xsd">
+ <RESOURCE type="results">
+  <TABLE ID="B_vsx_vsx" name="B/vsx/vsx">
+   <DESCRIPTION>
+    Variable Star indeX, Version 2026-10-18 (\originalcolumnnames)
+   </DESCRIPTION>
+   <FIELD ID="OID" datatype="int" name="OID" ucd="ID_NUMBER" width="8">
+    <DESCRIPTION>
+     Internal identifier, can be used to link out to the VSX database
+     (1)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="Name" arraysize="30" datatype="char" name="Name">
+    <DESCRIPTION>
+     Variable star identifier
+    </DESCRIPTION>
+    <VALUES null=" "/>
+   </FIELD>
+   <FIELD ID="Type" arraysize="30" datatype="char" name="Type">
+    <DESCRIPTION>
+     ? Variability type, ariability type, as in GCVS catalog
+     Variability type (see details of VSX type list)
+    </DESCRIPTION>
+    <VALUES null=" "/>
+   </FIELD>
+   <FIELD ID="max" datatype="double" name="max" precision="3" unit="mag" width="7">
+    <DESCRIPTION>
+     [-6.0/25.2]? Magnitude at maximum, or amplitude (MagMax)
+    </DESCRIPTION>
+    <VALUES null="nan"/>
+   </FIELD>
+   <FIELD ID="n_max" arraysize="10" datatype="char" name="n_max">
+    <DESCRIPTION>
+     ? Passband on max magnitude (4) (MaxPassband)
+    </DESCRIPTION>
+    <VALUES null=" "/>
+   </FIELD>
+   <FIELD ID="min" datatype="double" name="min" precision="3" unit="mag" width="7">
+    <DESCRIPTION>
+     [-0.02/28.0]? Magnitude at minimum, or amplitude (MagMin)
+    </DESCRIPTION>
+    <VALUES null="nan"/>
+   </FIELD>
+   <FIELD ID="f_min" arraysize="1" datatype="char" name="f_min">
+    <DESCRIPTION>
+     ? Flag to indicate an amplitude (MinIsAmplitude)
+    </DESCRIPTION>
+    <VALUES null=" "/>
+   </FIELD>
+   <FIELD ID="Period" datatype="double" name="Period" precision="12" unit="d" width="19">
+    <DESCRIPTION>
+     [0.0/27400.0]? Period of the variable in days
+    </DESCRIPTION>
+    <VALUES null="nan"/>
+   </FIELD>
+   <FIELD ID="RAJ2000" datatype="float" name="RAJ2000" precision="5" ucd="POS_EQ_RA_MAIN" unit="deg" width="9">
+    <DESCRIPTION>
+     Right ascension (J2000)
+    </DESCRIPTION>
+   </FIELD>
+   <FIELD ID="DEJ2000" datatype="float" name="DEJ2000" precision="5" ucd="POS_EQ_DEC_MAIN" unit="deg" width="9">
+    <DESCRIPTION>
+     Declination (J2000)
+    </DESCRIPTION>
+   </FIELD>
+   <DATA>
+    <TABLEDATA>
+     <TR>
+      <TD>4060983</TD>
+      <TD>Gaia DR3 1144599167953902464</TD>
+      <TD>VAR</TD>
+      <TD> 15.860</TD>
+      <TD>G</TD>
+      <TD> 16.520</TD>
+      <TD/>
+      <TD>     0.014847300000</TD>
+      <TD>143.41844</TD>
+      <TD> 80.95492</TD>
+     </TR>
+     <TR>
+      <TD>56729</TD>
+      <TD>NSV 18294</TD>
+      <TD>VAR:</TD>
+      <TD> 14.580</TD>
+      <TD>V</TD>
+      <TD>  0.300</TD>
+      <TD>Y</TD>
+      <TD/>
+      <TD>148.84875</TD>
+      <TD> 69.01361</TD>
+     </TR>
+     <TR>
+      <TD>2266704</TD>
+      <TD>ASASSN-V J110908.83+742826.9</TD>
+      <TD>VAR</TD>
+      <TD> 15.370</TD>
+      <TD>g</TD>
+      <TD>  0.290</TD>
+      <TD>Y</TD>
+      <TD>     6.635700000000</TD>
+      <TD>167.28679</TD>
+      <TD> 74.47414</TD>
+     </TR>
+     <TR>
+      <TD>1703167</TD>
+      <TD>ZTF J111001.01+785023.3</TD>
+      <TD>VAR</TD>
+      <TD> 14.303</TD>
+      <TD>r</TD>
+      <TD>  0.056</TD>
+      <TD>Y</TD>
+      <TD>     0.137237800000</TD>
+      <TD>167.50421</TD>
+      <TD> 78.83982</TD>
+     </TR>
+     <TR>
+      <TD>5312652</TD>
+      <TD>Gaia DR3 1666776962473690112</TD>
+      <TD>VAR</TD>
+      <TD> 15.360</TD>
+      <TD>G</TD>
+      <TD> 15.370</TD>
+      <TD/>
+      <TD>     0.024277500000</TD>
+      <TD>214.97375</TD>
+      <TD> 62.31790</TD>
+     </TR>
+     <TR>
+      <TD>58622</TD>
+      <TD>NSV 20187</TD>
+      <TD>VAR:</TD>
+      <TD> 15.400</TD>
+      <TD>P</TD>
+      <TD> 15.800</TD>
+      <TD/>
+      <TD/>
+      <TD>221.73875</TD>
+      <TD> 58.15556</TD>
+     </TR>
+     <TR>
+      <TD>5667316</TD>
+      <TD>Gaia DR3 1639927266481549184</TD>
+      <TD>VAR</TD>
+      <TD> 13.570</TD>
+      <TD>G</TD>
+      <TD> 13.610</TD>
+      <TD/>
+      <TD>     0.018406100000</TD>
+      <TD>237.41302</TD>
+      <TD> 62.60684</TD>
+     </TR>
+     <TR>
+      <TD>7146137</TD>
+      <TD>Gaia DR3 2147864456980588160</TD>
+      <TD>VAR</TD>
+      <TD> 15.580</TD>
+      <TD>G</TD>
+      <TD> 15.690</TD>
+      <TD/>
+      <TD>     0.018122800000</TD>
+      <TD>280.87656</TD>
+      <TD> 56.17137</TD>
+     </TR>
+     <TR>
+      <TD>7832051</TD>
+      <TD>Gaia DR3 2298118050972873856</TD>
+      <TD>VAR</TD>
+      <TD> 15.220</TD>
+      <TD>G</TD>
+      <TD> 15.310</TD>
+      <TD/>
+      <TD>     0.636240000000</TD>
+      <TD>312.32504</TD>
+      <TD> 80.90602</TD>
+     </TR>
+    </TABLEDATA>
+   </DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

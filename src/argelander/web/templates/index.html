@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Review queue</h1>
+  <ul class="counts">
+    {% for status, count in counts.items() %}
+      <li><span class="count">{{ count }}</span> {{ status.value }}</li>
+    {% endfor %}
+  </ul>
+
+  {# Each change re-fetches the queue region, page 1, and pushes the filtered URL. The swap
+     leaves this form alone, so htmx's history snapshot would restore the rows with the
+     form's first values: hx-history="false" sends Back to the server instead. Enter in the
+     number field fires change and then submit; hx-sync keeps the one request. #}
+  <form class="filters" action="/" method="get"
+        hx-get="/" hx-target="#queue" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="change, submit" hx-sync="this:replace" hx-history="false">
+    <label>Proposed type
+      <select name="type">
+        <option value="">any</option>
+        {% for type in types %}
+          <option value="{{ type }}" {% if filters.type == type %}selected{% endif %}>{{ type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Minimum Confidence
+      <input type="number" name="min_confidence" min="0" max="1" step="any"
+             value="{{ filters.min_confidence if filters.min_confidence is not none else '' }}">
+    </label>
+    <label>Blend
+      <select name="blend">
+        <option value="">any</option>
+        <option value="yes" {% if filters.blend == "yes" %}selected{% endif %}>blended</option>
+        <option value="no" {% if filters.blend == "no" %}selected{% endif %}>not blended</option>
+      </select>
+    </label>
+    <noscript><button type="submit">Filter</button></noscript>
+  </form>
+
+  {% include "_queue.html" %}
+{% endblock %}

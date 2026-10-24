@@ -1,0 +1,299 @@
+/* The review app's one stylesheet: vendored, no build step (spec §9). */
+
+:root {
+  --text: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --background: #ffffff;
+  --accent: #0969da;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+    --background: #0d1117;
+    --accent: #4493f8;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--background);
+}
+
+header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.count {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.queue {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.queue th,
+.queue td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.queue .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+/* The evidence page (GET /proposals/{id}). */
+
+:root {
+  --alert: #fff8c5;
+  --alert-border: #d4a72c;
+  --changed: #ddf4ff;
+  --against: #cf222e;
+  --supports: #1a7f37;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --alert: #272115;
+    --alert-border: #9e6a03;
+    --changed: #121d2f;
+    --against: #f85149;
+    --supports: #3fb950;
+  }
+}
+
+.steps {
+  display: flex;
+  gap: 1rem;
+}
+
+.alert {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--alert-border);
+  border-radius: 0.375rem;
+  background: var(--alert);
+  font-size: 1.125rem;
+}
+
+.fields,
+.evidence,
+.peaks,
+.aliases,
+.neighbours {
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.fields th,
+.fields td,
+.evidence th,
+.evidence td,
+.peaks th,
+.peaks td,
+.aliases th,
+.aliases td,
+.neighbours th,
+.neighbours td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fields .number,
+.evidence .number,
+.peaks .number,
+.aliases .number,
+.neighbours .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.changed {
+  background: var(--changed);
+  font-weight: 600;
+}
+
+.evidence .against td:nth-child(2) {
+  color: var(--against);
+}
+
+.evidence .supports td:nth-child(2) {
+  color: var(--supports);
+}
+
+.plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.plots figure {
+  margin: 0;
+}
+
+.plots img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+}
+
+.plots figcaption {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* The review form (POST /proposals/{id}/review). */
+
+:root {
+  --error: #cf222e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --error: #f85149;
+  }
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 40rem;
+}
+
+.review-form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+.decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* The edit fields show only while "Edit and approve" is chosen: no script needed. */
+.edit-fields {
+  display: none;
+}
+
+.review-form:has(input[name="decision"][value="edit"]:checked) .edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.edit-fields legend {
+  grid-column: 1 / -1;
+}
+
+.edit-fields label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+}
+
+.review-form textarea {
+  width: 100%;
+  font: inherit;
+}
+
+.review-form button {
+  align-self: flex-start;
+  padding: 0.375rem 1rem;
+  font: inherit;
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.875rem;
+}
+
+blockquote.notes {
+  margin: 0.5rem 0 1rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--border);
+  white-space: pre-wrap;
+}
+
+/* The Target history page (GET /targets/{id}). */
+
+.timeline {
+  padding-left: 1.25rem;
+}
+
+.timeline li {
+  margin-bottom: 0.75rem;
+}
+
+.timeline time {
+  margin-right: 0.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

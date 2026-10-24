@@ -37,7 +37,7 @@ drives the implementation plan.
 
 Python 3.12, FastAPI with server-rendered templates, Postgres (results and the
 job queue), Parquet light-curve cache, Docker Compose on a Mac mini behind a
-Tailscale sidecar.
+Tailscale sidecar (`deploy/tailscale.md`), deployed with `task deploy` (`deploy/README.md`).
 
 ## Development
 
@@ -49,8 +49,11 @@ task up          # postgres, app and jupyter; installs the git hooks
 task test        # offline tests in the app container
 task lint        # ruff check + format check
 task typecheck   # ty
+task workers     # the fetch and analyze workers, for a pipeline run
 task down
 ```
+
+`docs/runbook.md` walks through a pipeline run on the dev stack, command by command.
 
 JupyterLab is at <http://localhost:8888/lab> and Postgres at `localhost:5433` (5432 is left
 to the shared localdev Postgres); copy `.env.example` to `.env` to change either. The

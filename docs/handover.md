@@ -191,6 +191,8 @@ for business tools.
 - Mount the USB SSD by UUID in `/etc/fstab` with `nofail`, and make Docker wait
   for it (`RequiresMountsFor=` systemd override). Otherwise a reboot can leave
   the bind mount pointing at the boot disk.
+  *Amended 2026-10-21 (NEU-1725):* `WantsMountsFor=`, not `RequiresMountsFor=`, so a
+  missing SSD does not stop Docker starting at all; see spec §10 and `deploy/README.md`.
 - Review app reachable only on Tom's personal tailnet, through a
   `tailscale/tailscale` sidecar container (the mini already serves Navidrome
   and Uptime Kuma on separate tailnets this way; no host-level `tailscale up`).
@@ -201,6 +203,9 @@ for business tools.
 At about 0.5–1.5 MB per star, even the full 166k-star backlog fits on the 2 TB
 SSD, as long as raw TESS cutouts are discarded after extraction. These are
 order-of-magnitude estimates; the prototype should measure real per-star sizes.
+
+*Measured 2026-10-20 (NEU-1711):* about 14 MB a star, almost all of it TESS, so the whole
+backlog does not fit as the table below assumes; see spec §14.
 
 | Scope | Stars | Without TESS cutouts | With cutouts kept |
 | --- | --- | --- | --- |
