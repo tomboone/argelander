@@ -53,7 +53,7 @@ jobs:
       - name: Install uv
         # uv reads the interpreter from .python-version (3.12). setup-uv publishes no
         # floating major tags from v8 on, so pin the full release.
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.1
 
       - name: Sync dependencies
         # --locked fails if uv.lock is out of date with pyproject.toml.
@@ -127,7 +127,7 @@ jobs:
 
       - name: Install uv
         if: steps.scope.outputs.run == 'true'
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.1
 
       - name: Sync dependencies
         if: steps.scope.outputs.run == 'true'
