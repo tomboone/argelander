@@ -284,9 +284,9 @@ docker stats --no-stream      # each service's limit shows in MEM USAGE / LIMIT
 
 The review app (`api`) and its `tailscale` sidecar come up with the rest of the stack
 (`docker compose up -d tailscale api` starts them alone); the app is reachable only on the
-personal tailnet, at `http://argelander:8000`. `deploy/tailscale.md` has the auth
-key, the ACLs, the checks, and what to do when the sidecar restarts on its own or loses its
-state volume.
+personal tailnet, at `https://argelander.tail1afe5a.ts.net`, where the sidecar proxies HTTPS
+443 to the api over the Compose network. `deploy/tailscale.md` has the auth key, the access
+policy, the checks, the Kuma monitor, and what to do when the sidecar loses its state volume.
 
 The `backup` service dumps Postgres to Backblaze B2 with restic every night at 03:30;
 `task backup:check` lists the snapshots, and `deploy/restore.md` has the setup, the restore
