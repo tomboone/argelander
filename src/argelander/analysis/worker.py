@@ -35,6 +35,7 @@ from argelander.analysis.pipeline import analyze
 from argelander.classify.propose import propose
 from argelander.config import Settings
 from argelander.db import queue
+from argelander.db.migrations import wait_for_schema_head
 from argelander.db.models import (
     AgreementRelation,
     Job,
@@ -213,11 +214,15 @@ def run(settings: Settings, sessions: sessionmaker[Session]) -> NoReturn:
 
 
 def main(settings: Settings, sessions: sessionmaker[Session]) -> None:
-    """Check the Cache mount, then run the worker; `CacheNotMounted` before anything starts.
+    """Check the Cache mount, wait for the schema head, then run the worker; `CacheNotMounted`
+    or `SchemaNotAtHead` before anything starts.
 
     On an unmounted Cache every Target would find its files missing and fail.
     """
     check_cache_mount(settings.cache_dir, allow_unmounted=settings.allow_unmounted_cache)
+    wait_for_schema_head(
+        sessions, timeout=settings.schema_wait_timeout, interval=settings.schema_wait_interval
+    )
     run(settings, sessions)
 
 
