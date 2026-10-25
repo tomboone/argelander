@@ -38,12 +38,12 @@ x-usb: &usb
   bind:
     create_host_path: false
 
-# One image, one package (spec §3): each service is the prod image with its own command.
+# One image, one package (spec §3): each service is the prod image with its own command. The
+# image is pulled from GHCR, published by .github/workflows/image.yml on every push to main;
+# compose.dev.yaml builds it locally instead. IMAGE_TAG pins a `sha-<7>` tag to roll back
+# (deploy/README.md).
 x-app: &app
-  build:
-    context: .
-    target: prod
-  image: argelander:latest
+  image: ghcr.io/tomboone/argelander:${IMAGE_TAG:-latest}
   init: true
   restart: unless-stopped
   environment: *environment
@@ -51,6 +51,9 @@ x-app: &app
   depends_on:
     postgres:
       condition: service_healthy
+  labels: &watchtower-labels
+    - com.centurylinklabs.watchtower.enable=true
+    - com.centurylinklabs.watchtower.scope=argelander
 
 services:
   postgres:
@@ -96,14 +99,13 @@ services:
 
   # Nightly pg_dump into a restic repository on Backblaze B2, at 03:30 local (deploy/restore.md).
   # Only Postgres is backed up: the Cache can be downloaded again and the plots redrawn. Its
-  # own image, not the app's. The repository and its credentials come from the mini's .env;
-  # without them the service refuses to start and says which are missing. pg_dump takes a
-  # libpq URL, so DATABASE_URL here has no `+psycopg` driver suffix, and no password: in the
-  # URL it would sit in pg_dump's arguments, which `ps` on the host shows. libpq reads
-  # PGPASSWORD instead.
+  # own image, not the app's, published and pinned alongside it. The repository and its
+  # credentials come from the mini's .env; without them the service refuses to start and says
+  # which are missing. pg_dump takes a libpq URL, so DATABASE_URL here has no `+psycopg`
+  # driver suffix, and no password: in the URL it would sit in pg_dump's arguments, which `ps`
+  # on the host shows. libpq reads PGPASSWORD instead.
   backup:
-    build: deploy/backup
-    image: argelander-backup:latest
+    image: ghcr.io/tomboone/argelander-backup:${IMAGE_TAG:-latest}
     init: true
     restart: unless-stopped
     mem_limit: 512m
@@ -118,6 +120,7 @@ services:
     volumes:
       - restic-cache:/var/cache/restic
     logging: *logging
+    labels: *watchtower-labels
     depends_on:
       postgres:
         condition: service_healthy
@@ -156,9 +159,12 @@ services:
   # and publishes nothing on the host: the tailscale sidecar is the one way in, at
   # https://argelander.tail1afe5a.ts.net, where Uptime Kuma watches its /healthz (NEU-1727). It
   # mounts only the plots, so the astropy cache stays at the image's writable default.
+  # It migrates before serving, so a Watchtower update that brings a migration applies it. Only
+  # the api migrates, so two containers never race on the same upgrade; the workers wait for
+  # the schema head instead (docs/runbook.md §10).
   api:
     <<: *app
-    command: ["argelander", "web"]
+    command: ["sh", "-c", "argelander db-upgrade && exec argelander web"]
     mem_limit: 512m
     environment:
       DATABASE_URL: *database-url
@@ -178,6 +184,29 @@ services:
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"
       interval: 1m
       timeout: 10s
+
+  # Polls GHCR every 5 minutes and recreates only enabled containers in the `argelander` scope
+  # (the api, the workers and the backup) on a new image, removing the old one. It leaves
+  # postgres and the tailscale sidecar alone, and the other stacks' containers on the mini, and
+  # their own Watchtowers. The instance carries its own scope label, as Watchtower's
+  # multiple-instance docs require.
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    command: ["--label-enable", "--scope", "argelander", "--interval", "300", "--cleanup"]
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      # Watchtower's client defaults to API 1.25, which Docker Engine 29+ rejects.
+      DOCKER_API_VERSION: "1.44"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "/watchtower", "--health-check"]
+      interval: 1m
+      timeout: 10s
+    labels:
+      - com.centurylinklabs.watchtower.scope=argelander
 
 volumes:
   postgres-data:

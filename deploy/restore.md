@@ -72,7 +72,7 @@ ones in its logs and restarting until they are set, so a deploy without them sho
    service may not be running yet:
 
    ```sh
-   docker compose build backup
+   docker compose pull backup
    docker compose run --rm backup restic init
    # created restic repository 1a2b3c4d5e at s3:https://s3.us-east-005.backblazeb2.com/argelander-backup/postgres
    ```
@@ -192,8 +192,8 @@ exists.
    Anything but exit 0 means the database may hold part of the dump: go back to step 2
    before trying again, and do not deploy onto it.
 
-4. `task deploy`. It migrates the restored database forward if the code is newer than the
-   dump, and starts the rest of the stack, `backup` included.
+4. `task deploy`. It starts the rest of the stack, `backup` included, and the api migrates
+   the restored database forward as it starts if the image is newer than the dump.
 
 ## Drills
 

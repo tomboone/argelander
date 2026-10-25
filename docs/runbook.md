@@ -220,8 +220,9 @@ task down           # everything; the postgres volume is kept
 
 `compose.yaml` alone is the prod stack (spec §10): `postgres`, `fetcher` and `analyzer`
 from the prod image, each with a memory limit (1 GB, 1 GB, 3 GB) and `restart:
-unless-stopped`, plus `api` (512 MB) and its `tailscale` sidecar (128 MB). Postgres keeps its data on a named volume on the internal disk; the
-Cache, the plots and the astropy download cache live on the USB SSD. The mini's `.env`
+unless-stopped`, plus `api` (512 MB), its `tailscale` sidecar (128 MB), `backup` (512 MB)
+and `watchtower` (128 MB). Postgres keeps its data on a named volume on the internal disk;
+the Cache, the plots and the astropy download cache live on the USB SSD. The mini's `.env`
 needs two variables, plus a third for the first start of the review app:
 
 ```sh
@@ -269,16 +270,15 @@ for the database to reach the schema head`. After `SCHEMA_WAIT_TIMEOUT` seconds 
 the database is at 1772c34244e1, not at the image's head a6e2fcd9cb24, after 300 s; run `argelander db-upgrade`
 ```
 
-On the mini, `task deploy` does all of what follows, and `deploy/README.md` has the
-mini's own setup: the bind mount the T7 gets for this, the fstab lines and the systemd
-drop-in that makes Docker wait for them. By hand, bring it up, migrate, then start the
-workers:
+On the mini the stack runs from the images on GHCR, and Watchtower keeps it on the newest
+within about 5 minutes of a merge to `main`. `task deploy` does all of what follows, and
+`deploy/README.md` has the mini's own setup: the bind mount the T7 gets for this, the fstab
+lines and the systemd drop-in that makes Docker wait for them. By hand, pull the images and
+bring it up; the api migrates as it starts, and the workers wait for it:
 
 ```sh
-docker compose build
-docker compose up -d postgres
-docker compose run --rm fetcher argelander db-upgrade
-docker compose up -d fetcher analyzer
+docker compose pull
+docker compose up -d
 docker stats --no-stream      # each service's limit shows in MEM USAGE / LIMIT
 ```
 
