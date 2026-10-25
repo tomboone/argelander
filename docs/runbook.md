@@ -259,6 +259,16 @@ a mount point. The workers' healthcheck reads the same marker, so `docker compos
 them unhealthy if the SSD drops out under them. Docker does not restart an unhealthy
 container: restart them by hand once the SSD is back.
 
+The workers also wait at start for the database to reach the migration head their image
+carries, checking every `SCHEMA_WAIT_INTERVAL` seconds (default 5), because a worker on a new
+image can start before anything has migrated. Each check that finds it behind logs `waiting
+for the database to reach the schema head`. After `SCHEMA_WAIT_TIMEOUT` seconds (default
+300) a worker exits with a line like this and restarts; `argelander db-upgrade` clears it:
+
+```
+the database is at 1772c34244e1, not at the image's head a6e2fcd9cb24, after 300 s; run `argelander db-upgrade`
+```
+
 On the mini, `task deploy` does all of what follows, and `deploy/README.md` has the
 mini's own setup: the bind mount the T7 gets for this, the fstab lines and the systemd
 drop-in that makes Docker wait for them. By hand, bring it up, migrate, then start the

@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # only: in prod an unmounted USB SSD would leave the Cache filling the boot disk, or the
     # analyzer failing every Target on an empty one (spec §10).
     allow_unmounted_cache: bool = False
+    # How long, in seconds, the fetch and analyze workers wait at start for the database to
+    # reach the head revision their image carries, and how often they check. Only the api
+    # migrates on start; a worker still behind when the wait runs out exits, and its restart
+    # policy starts it again.
+    schema_wait_timeout: float = Field(default=300.0, ge=0)
+    schema_wait_interval: float = Field(default=5.0, gt=0)
 
 
 @lru_cache(maxsize=1)
