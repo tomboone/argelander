@@ -15,6 +15,7 @@ Tom runs the one-time host steps below by hand, since they need `sudo`.
 | Argelander's part of it | `/mnt/music/argelander`, bind-mounted at `/mnt/argelander` (`USB_ROOT`): `cache/`, `plots/`, `astropy/` |
 | Docker waits for it | `/etc/systemd/system/docker.service.d/argelander-usb.conf` |
 | The review app's sidecar | `deploy/tailscale.md` |
+| Published images | `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup`, tagged `latest` and `sha-<7>`, pushed by `.github/workflows/image.yml` on every push to `main`. The deploy below does not use them yet: it still builds both on the mini |
 
 ## Why a bind mount of its own
 
