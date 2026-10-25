@@ -1,21 +1,25 @@
 # Deploying to the Mac mini
 
 The prod stack (`compose.yaml` alone, spec §10) runs on `kumadrome`, the 2011 Mac mini on
-Ubuntu Server, from a clone of this repo at `~/argelander`. Deploys are `git pull` plus
-Compose, wrapped as `task deploy`; nothing runs from CI and nothing is managed by Coolify.
-Tom runs the one-time host steps below by hand, since they need `sudo`.
+Ubuntu Server, from a clone of this repo at `~/argelander`. The app and backup images come
+from GHCR: CI publishes them on every push to `main`, and a Watchtower scoped to this stack
+pulls them and recreates the containers, so a merge is live within about 5 minutes of its
+image publishing. Nothing is
+built on the mini and nothing is managed by Coolify. `task deploy` is for the first setup and
+for recovery. Tom runs the one-time host steps below by hand, since they need `sudo`.
 
 | Piece | Where |
 | --- | --- |
 | Checkout | `~/argelander` on the mini, on `main`, cloned over HTTPS (the repo is public, so no deploy key) |
-| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, the backup's restic and B2 settings, and `TS_AUTHKEY` once |
+| Secrets and host paths | `~/argelander/.env`, mode 600: `USB_ROOT`, `POSTGRES_PASSWORD`, the backup's restic and B2 settings, `TS_AUTHKEY` once, and `IMAGE_TAG` only while rolled back |
 | Postgres data | the `argelander_postgres-data` named volume, on the internal SSD |
 | Its nightly backup | restic to Backblaze B2: `deploy/restore.md` |
 | The USB SSD | the 2 TB Samsung T7, `UUID=0e995573-d89e-44d3-8473-65ee5aa3e296`, mounted at `/mnt/music` and shared with Navidrome and the Kumas |
 | Argelander's part of it | `/mnt/music/argelander`, bind-mounted at `/mnt/argelander` (`USB_ROOT`): `cache/`, `plots/`, `astropy/` |
 | Docker waits for it | `/etc/systemd/system/docker.service.d/argelander-usb.conf` |
 | The review app's sidecar | `deploy/tailscale.md` |
-| Published images | `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup`, tagged `latest` and `sha-<7>`, pushed by `.github/workflows/image.yml` on every push to `main`. The deploy below does not use them yet: it still builds both on the mini |
+| Published images | `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup`, tagged `latest` (what the mini runs) and `sha-<7>` (for pinning a commit), pushed by `.github/workflows/image.yml` on every push to `main`. Both packages are public, so the mini pulls them anonymously |
+| Updates | the `watchtower` service, scoped to `argelander` (*Updates* below) |
 
 ## Why a bind mount of its own
 
@@ -129,16 +133,71 @@ Run on the mini (`ssh kumadrome`).
    `deploy/restore.md`, steps 1–4. Without them the `backup` service refuses to start and
    restarts in a loop, naming what is missing; the rest of the stack runs regardless.
 
-9. **The first deploy.** Exactly the same as every later one: `task deploy` (below). It
-   initialises Postgres on its first start and migrates it. Then `task backup:now` takes
-   the first backup rather than waiting for 03:30.
+9. **The first deploy.** `task deploy` (below). Postgres initialises on its first start and
+   the api migrates it as it starts. Then `task backup:now` takes the first backup rather
+   than waiting for 03:30. From then on Watchtower deploys every merge.
 
 The review app and its tailnet node come later, with M6: `deploy/tailscale.md` covers the
 auth key and the first start.
 
-## Deploying
+## Updates
 
-From the laptop:
+Watchtower polls GHCR every 5 minutes. When `latest` has moved, it pulls the new image,
+recreates the containers that run it and removes the old image. It runs with
+`--label-enable --scope argelander`, so it only touches the containers labelled with that
+scope: `api`, `fetcher`, `analyzer` and `backup`. `postgres` (a major upgrade needs a dump
+and restore, never a pull), the `tailscale` sidecar and the other stacks on the mini are left
+alone. Every other Watchtower on the mini must be scoped too: an unscoped one updates every
+enabled container whatever its scope, and stops every other Watchtower when it starts
+([Watchtower docs](https://containrrr.dev/watchtower/running-multiple-instances/)).
+
+The `api` applies any new migration as it starts (`argelander db-upgrade`, then the web
+server), and only the `api` migrates, so two containers never race on the same upgrade. The
+workers may be recreated first; each waits for the schema head, logging `waiting for the
+database to reach the schema head` until the `api` has migrated, then starts
+(`docs/runbook.md` §10).
+
+To watch it:
+
+```sh
+docker compose logs --follow watchtower    # "Found new ... image", then the containers it recreated
+docker compose logs --follow api           # the migration, then the web server
+docker compose logs fetcher analyzer       # the schema wait, if the update brought a migration
+```
+
+A change to `compose.yaml` itself, or to `deploy/tailscale/`, is not an image change, so it
+needs `task deploy` to reach the mini.
+
+Every push to `main` publishes a new backup image too, even when `deploy/backup/` has not
+changed, because the published image carries the commit in its labels. So Watchtower
+recreates `backup` on every merge. That is harmless except during the nightly dump: a merge
+around 03:30 can kill one mid-run, and the next night's runs as usual. Check with
+`task backup:check` after a merge at that hour.
+
+### Rolling back
+
+Pin both images to one commit's `sha-<7>` tag in `.env`, which `compose.yaml` reads as
+`IMAGE_TAG`, and recreate the containers:
+
+```sh
+cd ~/argelander
+echo 'IMAGE_TAG=sha-1a2b3c4' >> .env
+docker compose up -d
+docker compose ps --format '{{.Service}} {{.Image}}'   # api, fetcher, analyzer, backup on sha-1a2b3c4
+```
+
+Watchtower keeps following that tag, which never moves, so updates stop until the pin is
+removed. Migrations do not roll back with the image: a newer schema stays in place, the
+api's `db-upgrade` on the older image fails on a revision it has no migration for, so the
+review app does not start, and the workers wait for a head they never see and exit after
+`SCHEMA_WAIT_TIMEOUT`. Pin only to a commit with the same migrations, or revert the change on
+`main` instead and let Watchtower deploy the revert. To go back to `latest`, delete the
+`IMAGE_TAG` line from `.env` and run `docker compose pull && docker compose up -d`; without
+the pull, Compose starts whatever `latest` the mini still has cached.
+
+## Deploying by hand
+
+For the first setup, after a change to `compose.yaml`, or to recover. From the laptop:
 
 ```sh
 task deploy:remote          # ssh kumadrome 'cd ~/argelander && task deploy'
@@ -152,11 +211,9 @@ from bringing the prod stack up on the laptop. Then it runs, against `compose.ya
 | Step | Why |
 | --- | --- |
 | `git pull --ff-only` | A checkout that has diverged from `origin/main` stops the deploy rather than merging |
-| `docker compose pull --ignore-buildable` | Newer `postgres:16` and `tailscale/tailscale:stable` |
-| `docker compose build --pull` | The prod image, on a freshly pulled `python:3.12-slim`, and the backup image on `debian:trixie-slim` |
-| `docker compose run --rm fetcher argelander db-upgrade` | Migrates before the new workers start; starts Postgres first if it is down |
-| `docker compose up -d --remove-orphans` | Recreates whatever changed; drops containers of services removed from `compose.yaml` |
-| `docker compose ps` | Shows the result: the workers turn healthy within a minute |
+| `docker compose pull` | The app and backup images from GHCR, and newer `postgres:16`, `tailscale/tailscale:stable` and Watchtower |
+| `docker compose up -d --remove-orphans` | Recreates whatever changed, the api migrating as it starts; drops containers of services removed from `compose.yaml` |
+| `docker compose ps` | Shows the result: the workers and Watchtower turn healthy within a minute |
 
 The deploy reads the Taskfile before it pulls, so a change to the `deploy` task itself
 takes effect on the deploy after the one that brings it.
@@ -167,8 +224,8 @@ With the T7 unplugged, the deploy's `up -d` fails on the api, whose `${USB_ROOT}
 has no source: the workers still start and log the missing Cache marker, but the task exits
 non-zero. Plug the SSD back in and deploy again.
 
-To roll back, revert the change on `main` and deploy again; the deploy only ever moves the
-checkout forward.
+The deploy only ever moves the checkout forward; to roll back the images, see *Rolling back*
+above.
 
 ## Checking it after a reboot
 

@@ -71,7 +71,7 @@ tasks:
     cmd: "{{.EXEC}} argelander db-upgrade"
 
   deploy:
-    desc: "On the mini: pull main, rebuild, migrate and bring the prod stack up (deploy/README.md)"
+    desc: "On the mini, for first setup or recovery: pull main and the images, start the prod stack"
     preconditions:
       - sh: test -n "$USB_ROOT"
         msg: "USB_ROOT is not set: task deploy runs on the mini, with its .env; elsewhere, task deploy:remote"
@@ -81,9 +81,7 @@ tasks:
         msg: "the checkout is not on main; deploys come from main only"
     cmds:
       - git pull --ff-only
-      - "{{.PROD_COMPOSE}} pull --ignore-buildable"
-      - "{{.PROD_COMPOSE}} build --pull"
-      - "{{.PROD_COMPOSE}} run --rm fetcher argelander db-upgrade"
+      - "{{.PROD_COMPOSE}} pull"
       - "{{.PROD_COMPOSE}} up -d --remove-orphans"
       - "{{.PROD_COMPOSE}} ps"
 

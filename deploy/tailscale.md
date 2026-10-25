@@ -23,10 +23,11 @@ Navidrome once had). The directory is mounted rather than `serve.json` itself be
 containerboot watches it, so a `git pull` that replaces the file reaches the running
 sidecar.
 
-Both services are part of the prod stack, so `task deploy` starts them and keeps them
-current. Without a node key on the state volume and without `TS_AUTHKEY`, the sidecar waits
-for an interactive login and prints its URL in its logs, so put the auth key in `.env`
-before the first deploy that starts it (*First start* below).
+Both services are part of the prod stack, so `task deploy` starts them; Watchtower keeps the
+api current, and `task deploy` the sidecar. Without a node key on the state volume and
+without `TS_AUTHKEY`, the sidecar waits for an interactive login and prints its URL in its
+logs, so put the auth key in `.env` before the first deploy that starts it (*First start*
+below).
 
 ## First start
 

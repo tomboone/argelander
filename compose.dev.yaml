@@ -1,4 +1,5 @@
 # Dev stack: `docker compose -f compose.yaml -f compose.dev.yaml`, wrapped as `task up`.
+# compose.yaml pulls the prod images from GHCR; here every image is built locally instead.
 # Ports bind to 127.0.0.1 only. Postgres defaults to 5433 on the host because the shared
 # localdev Postgres already holds 5432.
 
@@ -39,13 +40,12 @@ services:
       postgres:
         condition: service_healthy
 
-  # The two prod workers, moved onto the app image and the same mount, so `data/cache` and
-  # `data/plots` are the repo's: the USB SSD mount, the marker healthcheck and the restart
-  # policy are dropped. Opt-in through the `workers` profile (`task workers`): `task up`
-  # leaves them stopped, so nothing fetches until a run is meant. They do not reload on
-  # edits; restart them (`task workers`) to pick up a change.
+  # The two prod workers, moved onto the app image (built by `app`) and the same mount, so
+  # `data/cache` and `data/plots` are the repo's: the USB SSD mount, the marker healthcheck and
+  # the restart policy are dropped. Opt-in through the `workers` profile (`task workers`):
+  # `task up` leaves them stopped, so nothing fetches until a run is meant. They do not reload
+  # on edits; restart them (`task workers`) to pick up a change.
   fetcher:
-    build: !reset null
     image: argelander:dev
     profiles: [workers]
     restart: "no"
@@ -56,7 +56,6 @@ services:
       disable: true
 
   analyzer:
-    build: !reset null
     image: argelander:dev
     profiles: [workers]
     restart: "no"
@@ -69,15 +68,17 @@ services:
   # The prod backup has no repository or B2 key in dev, so it would only restart in a loop.
   # Behind a profile nothing activates, so `task up` leaves it alone; name it to try it.
   backup:
+    build: deploy/backup
+    image: argelander-backup:dev
     profiles: [backup]
     restart: "no"
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-argelander}
 
   # The review app on the app image and mount, published on localhost instead of the tailnet:
-  # http://localhost:${API_PORT:-8000}. It reloads on edits.
+  # http://localhost:${API_PORT:-8000}. It reloads on edits, and unlike the prod api does not
+  # migrate as it starts: `task migrate` does that here.
   api:
-    build: !reset null
     image: argelander:dev
     command: ["argelander", "web", "--reload"]
     restart: "no"
@@ -96,6 +97,12 @@ services:
   # profile nothing activates, so `task up` leaves it stopped.
   tailscale:
     profiles: [tailscale]
+    restart: "no"
+
+  # The dev images are local, so there is nothing on GHCR for Watchtower to follow. Behind a
+  # profile nothing activates, so `task up` leaves it stopped.
+  watchtower:
+    profiles: [watchtower]
     restart: "no"
 
   jupyter:

@@ -1044,6 +1044,14 @@ from the grilling session:
   the profile is dropped.
   *Amended 2026-10-21 (NEU-1728):* the `api` profile the amendments above describe is gone;
   §9 has the review app's Compose changes.
+  *Amended 2026-10-25 (NEU-1949):* the mini no longer builds. `compose.yaml` runs
+  `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup` (`latest`, or the
+  `sha-<7>` that `IMAGE_TAG` in `.env` pins), published by CI on every push to `main`; the
+  builds live in `compose.dev.yaml` alone. A `watchtower` service scoped to `argelander`
+  polls GHCR every 5 minutes and recreates `api`, `fetcher`, `analyzer` and `backup` on a
+  new image. `api` runs `db-upgrade` before `web`, the only service that migrates; the
+  workers wait for the schema head. `task deploy` is first setup and recovery only: `git
+  pull --ff-only`, `pull`, `up -d --remove-orphans`, `ps`.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks
   `/healthz` over the tailnet; the backup job logs success/failure. No error tracker.
 

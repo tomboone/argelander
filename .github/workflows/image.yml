@@ -23,8 +23,8 @@ jobs:
     strategy:
       # One image failing must not cancel the other's publish mid-push.
       fail-fast: false
-      # The app's target matches compose.yaml's, rather than relying on `prod` being the last
-      # stage. The backup Dockerfile has one stage, so no target.
+      # The app's target is named, rather than relying on `prod` being the last stage. The
+      # backup Dockerfile has one stage, so no target.
       matrix:
         include:
           - image: argelander
