@@ -252,11 +252,11 @@ def web(
     host: Annotated[
         str,
         typer.Option(
-            help="Address to listen on. Prod keeps loopback, where the tailscale sidecar hands "
-            "it tailnet connections (deploy/tailscale.md); the dev stack listens on 0.0.0.0 to "
-            "publish the port."
+            help="Address to listen on. Every IPv4 interface, so the tailscale sidecar can proxy "
+            "to it over the Compose network (deploy/tailscale.md) and the dev stack can publish "
+            "the port; prod publishes nothing on the host."
         ),
-    ] = "127.0.0.1",
+    ] = "0.0.0.0",
     port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
     reload: Annotated[
         bool, typer.Option("--reload", help="Restart on source changes (dev only).")

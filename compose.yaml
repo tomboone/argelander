@@ -122,46 +122,44 @@ services:
       postgres:
         condition: service_healthy
 
-  # The api's network namespace: its own node, `argelander`, on the personal tailnet; the host
-  # is on no tailnet (deploy/tailscale.md). Userspace networking, like the mini's other
-  # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
-  # connection to 127.0.0.1 in the namespace, where the api listens on 8000. Nothing is
-  # published, so the port is closed to the LAN and to the host; `web` binds 127.0.0.1, not
-  # 0.0.0.0, so it is closed on the namespace's Compose-network address too.
+  # The api's own node, `argelander`, on the personal tailnet, tagged tag:app; the host's own
+  # tailnet node is kumadrome (deploy/tailscale.md). Serve terminates HTTPS on 443 at
+  # https://argelander.tail1afe5a.ts.net and proxies to http://api:8000 over the Compose network
+  # (deploy/tailscale/serve.json), the same pattern as kumadrome's other apps. Userspace
+  # networking, so it needs no NET_ADMIN or /dev/net/tun.
   tailscale:
     image: tailscale/tailscale:stable
+    # Never the name of a service it proxies: Docker maps a container's own hostname to itself in
+    # /etc/hosts, so a proxy to that name would dial the sidecar (Navidrome's 502). The tailnet
+    # name is TS_HOSTNAME.
+    hostname: argelander-tailscale
     restart: unless-stopped
     mem_limit: 128m
     environment:
       TS_HOSTNAME: argelander
-      # One-time auth key from the personal tailnet. Blank it once the state volume holds the
-      # node key.
+      # One-time auth key from the personal tailnet, tagged tag:app. Blank it once the state
+      # volume holds the node key.
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_AUTH_ONCE: "true"
-      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-tags=tag:app}
       TS_STATE_DIR: /var/lib/tailscale
       TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
     volumes:
+      # The directory, not the file: containerboot watches it, so a git pull that replaces
+      # serve.json still reaches the running sidecar.
+      - ./deploy/tailscale:/config:ro
       - tailscale-state:/var/lib/tailscale
     logging: *logging
 
-  # The review app reads Postgres and serves the plots, read-only. It is reached only on the
-  # tailnet, at http://argelander:8000, through the tailscale sidecar's network namespace;
-  # Uptime Kuma watches its /healthz there (NEU-1727). It mounts only the plots, so the
-  # astropy cache stays at the image's writable default.
+  # The review app reads Postgres and serves the plots, read-only. It is on the Compose network
+  # and publishes nothing on the host: the tailscale sidecar is the one way in, at
+  # https://argelander.tail1afe5a.ts.net, where Uptime Kuma watches its /healthz (NEU-1727). It
+  # mounts only the plots, so the astropy cache stays at the image's writable default.
   api:
     <<: *app
     command: ["argelander", "web"]
     mem_limit: 512m
-    network_mode: service:tailscale
-    depends_on:
-      postgres:
-        condition: service_healthy
-      # A restarted sidecar has a new namespace, so Compose restarts the api with it. A restart
-      # Compose does not make (a crash) strands the api; see deploy/tailscale.md.
-      tailscale:
-        condition: service_started
-        restart: true
     environment:
       DATABASE_URL: *database-url
       PLOTS_DIR: /usb/plots
