@@ -8,7 +8,9 @@ Every conversion is checked against a value derived without the code under test,
   implementation of the Wright & Eastman (2014) barycentric correction on JPL DE430.
   ASAS-SN's input HJD comes from the Astronomical Almanac's low-precision Sun, not astropy.
 
-The astropy round trips then check the same functions to a millisecond.
+The astropy round trips then check the same functions to a millisecond. The one conversion
+the other way, BJD_TDB → HJD for VSX's epoch, is checked against the same references and as
+the inverse of the ASAS-SN conversion.
 """
 
 from collections.abc import Callable
@@ -21,6 +23,7 @@ from astropy.time import Time
 
 from argelander.analysis.time import (
     asassn_hjd_to_bjd_tdb,
+    bjd_tdb_to_hjd,
     gaia_tcb_to_bjd_tdb,
     tess_btjd_to_bjd_tdb,
     ztf_mjd_to_bjd_tdb,
@@ -95,6 +98,14 @@ def test_asassn_matches_barycorrpy_reference() -> None:
     assert bjd[0] == pytest.approx(REF_BJD_TDB, abs=ONE_SECOND)
 
 
+def test_hjd_matches_barycorrpy_reference() -> None:
+    ra, dec = tau_ceti_icrs_at(REF_JD_UTC)
+
+    hjd = bjd_tdb_to_hjd(np.array([REF_BJD_TDB]), ra, dec)
+
+    assert hjd[0] == pytest.approx(almanac_hjd(REF_JD_UTC, ra, dec), abs=ONE_SECOND)
+
+
 def test_tess_is_btjd_plus_2457000() -> None:
     # TESS Science Data Products Description Document: BTJD = BJD_TDB − 2457000.0.
     btjd = np.array([0.0, 1325.29, 3135.755972])
@@ -149,6 +160,26 @@ def test_asassn_inverts_astropys_heliocentric_correction() -> None:
     )
 
 
+def test_hjd_round_trips_the_asassn_conversion() -> None:
+    ra, dec = 268.5, 61.2
+    hjd = np.array([2457000.3, 2458500.8, 2460300.1])
+
+    np.testing.assert_allclose(
+        bjd_tdb_to_hjd(asassn_hjd_to_bjd_tdb(hjd, ra, dec), ra, dec),
+        hjd,
+        rtol=0,
+        atol=ONE_MILLISECOND,
+    )
+
+
+def test_hjd_is_the_bjd_less_about_tdb_minus_utc() -> None:
+    # Near the ecliptic pole the heliocentric and barycentric corrections differ by only the
+    # Sun's offset from the barycentre, so the gap is mostly TDB − UTC (69.184 s since 2017).
+    hjd = bjd_tdb_to_hjd(2460000.5, 270.0, 66.56)
+
+    assert float(hjd) == pytest.approx(2460000.5 - 69.184 / 86400.0, abs=5 * ONE_SECOND)
+
+
 def test_gaia_inverts_astropys_tdb_to_tcb() -> None:
     tdb = Time(np.array([2457000.3, 2457500.8]), format="jd", scale="tdb")
 
@@ -164,8 +195,9 @@ def test_gaia_inverts_astropys_tdb_to_tcb() -> None:
         lambda t: tess_btjd_to_bjd_tdb(t + 1500.0),
         lambda t: gaia_tcb_to_bjd_tdb(t + 2000.0),
         lambda t: asassn_hjd_to_bjd_tdb(t + 2457000.0, 268.5, 61.2),
+        lambda t: bjd_tdb_to_hjd(t + 2457000.0, 268.5, 61.2),
     ],
-    ids=["ztf", "tess", "gaia", "asassn"],
+    ids=["ztf", "tess", "gaia", "asassn", "hjd"],
 )
 def test_conversions_take_and_return_float64_arrays(
     convert: Callable[[np.ndarray], np.ndarray],
