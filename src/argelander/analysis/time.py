@@ -8,6 +8,8 @@ The four surveys report:
 - Gaia DR3 epoch photometry: barycentric JD in TCB − 2455197.5.
 - ASAS-SN: HJD in UTC (heliocentric, geocentric observer).
 
+`bjd_tdb_to_hjd` goes the other way, for VSX's revision form, which takes the epoch in HJD.
+
 Each function takes a scalar or an array of times and returns float64 JDs of the same shape.
 The barycentric corrections use astropy's built-in ERFA ephemeris, which needs no download
 and is accurate to tens of microseconds, far inside the 1 s the analysis needs.
@@ -69,6 +71,25 @@ def asassn_hjd_to_bjd_tdb(hjd: npt.ArrayLike, ra: float, dec: float) -> np.ndarr
         delta = t.light_travel_time(target, kind="heliocentric", ephemeris=_EPHEMERIS)
         jd = hjd - delta.to_value(u.day)
     return _utc_to_bjd_tdb(Time(jd, format="jd", scale="utc", location=_GEOCENTRE), target)
+
+
+def bjd_tdb_to_hjd(bjd: npt.ArrayLike, ra: float, dec: float) -> np.ndarray:
+    """BJD_TDB → HJD (UTC) for a Target at ICRS `ra`, `dec` in degrees: VSX's epoch.
+
+    The inverse of `asassn_hjd_to_bjd_tdb`: removes the barycentric correction to recover the
+    TDB instant at the geocentre, converts it to UTC, then applies the heliocentric correction.
+    As there, two fixed-point steps recover the instant to well under a millisecond.
+    """
+    target = _icrs(ra, dec)
+    bjd = np.asarray(bjd, dtype=np.float64)
+    tdb = bjd
+    for _ in range(2):
+        t = Time(tdb, format="jd", scale="tdb", location=_GEOCENTRE)
+        delta = t.light_travel_time(target, kind="barycentric", ephemeris=_EPHEMERIS)
+        tdb = bjd - delta.to_value(u.day)
+    utc = Time(tdb, format="jd", scale="tdb", location=_GEOCENTRE).utc
+    delta = utc.light_travel_time(target, kind="heliocentric", ephemeris=_EPHEMERIS)
+    return np.asarray(utc.jd + delta.to_value(u.day), dtype=np.float64)
 
 
 def _icrs(ra: float, dec: float) -> SkyCoord:

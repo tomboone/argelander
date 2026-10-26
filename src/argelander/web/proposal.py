@@ -2,7 +2,8 @@
 
 The page sets the Proposal's fields beside VSX's current values and lays out its Analysis:
 every plot in `analyses.plots`, the Evidence grouped by type, each survey's top peaks and
-alias ranking, the blend checks, the CMD position and Gaia's own class and period.
+alias ranking, the blend checks, the CMD position and Gaia's own class and period. The epoch
+is shown in HJD as well as BJD_TDB, since VSX's revision form takes HJD.
 
 When the Target has an earlier Proposal, superseded, approved or rejected, the page shows the
 newest of them field by field beside this one, the changed fields marked, and an earlier
@@ -23,6 +24,7 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from argelander.analysis.time import bjd_tdb_to_hjd
 from argelander.classify.confidence import best_type, scores
 from argelander.classify.rules.agreement import AgreementRule
 from argelander.classify.rules.base import Evidence
@@ -58,6 +60,7 @@ class ProposalPage:
     proposal: Proposal
     target: Target
     analysis: Analysis
+    epoch_hjd: float | None  # the Proposal's epoch as VSX takes it; None without an epoch
     plots: tuple[tuple[str, str], ...]  # (kind, path relative to PLOTS_DIR), in page order
     evidence: tuple[EvidenceGroup, ...]  # best-scoring type first
     no_agreement: str | None  # the Agreement rule's explanation, when there is no Agreement
@@ -182,10 +185,12 @@ async def proposal_page(session: AsyncSession, proposal_id: int) -> ProposalPage
     )
     evidence = [Evidence(**item) for item in proposal.evidence]
     best = best_type(scores(evidence), target_gaia_types(target))
+    epoch = proposal.epoch_bjd
     return ProposalPage(
         proposal=proposal,
         target=target,
         analysis=analysis,
+        epoch_hjd=None if epoch is None else float(bjd_tdb_to_hjd(epoch, target.ra, target.dec)),
         plots=plot_order(analysis.plots),
         evidence=evidence_groups(evidence, best),
         no_agreement=no_agreement_explanation(evidence, best),
