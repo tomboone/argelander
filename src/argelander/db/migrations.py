@@ -54,10 +54,11 @@ def wait_for_schema_head(
     """Return once the database is at this image's head revision; `SchemaNotAtHead` if it is
     not there within `timeout` seconds, checking every `interval`.
 
-    Under Watchtower only the api migrates on start, and Watchtower restarts each container on
-    its own, ignoring `depends_on`. A worker on a new image can come up before the api has
-    migrated, so it waits rather than write against the old schema; exiting when the wait runs
-    out lets `restart: unless-stopped` try again.
+    Under Watchtower only the api migrates on start. Watchtower orders restarts by `depends_on`
+    but does not wait for health. The workers depend only on postgres, which Watchtower does not
+    watch, so a worker on a new image can come up before the api has migrated. The worker waits
+    rather than write against the old schema; exiting when the wait runs out lets
+    `restart: unless-stopped` try again.
     """
     script = ScriptDirectory.from_config(alembic_config())
     head = _describe(set(script.get_heads()))
