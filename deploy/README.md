@@ -147,9 +147,10 @@ recreates the containers that run it and removes the old image. It runs with
 `--label-enable --scope argelander`, so it only touches the containers labelled with that
 scope: `api`, `fetcher`, `analyzer` and `backup`. `postgres` (a major upgrade needs a dump
 and restore, never a pull), the `tailscale` sidecar and the other stacks on the mini are left
-alone. Every other Watchtower on the mini must be scoped too: an unscoped one updates every
-enabled container whatever its scope, and stops every other Watchtower when it starts
-([Watchtower docs](https://containrrr.dev/watchtower/running-multiple-instances/)).
+alone. Every other Watchtower on the mini is scoped too. Each instance updates only the
+enabled containers in its own scope, and when it starts it stops only the other Watchtowers in
+that scope, so no two instances may share a scope ([Watchtower
+docs](https://watchtower.nickfedor.com/advanced-features/running-multiple-instances/)).
 
 The `api` applies any new migration as it starts (`argelander db-upgrade`, then the web
 server), and only the `api` migrates, so two containers never race on the same upgrade. The
@@ -160,7 +161,7 @@ database to reach the schema head` until the `api` has migrated, then starts
 To watch it:
 
 ```sh
-docker compose logs --follow watchtower    # "Found new ... image", then the containers it recreated
+docker compose logs --follow watchtower    # "Found new image" per container, then "Started new container"
 docker compose logs --follow api           # the migration, then the web server
 docker compose logs fetcher analyzer       # the schema wait, if the update brought a migration
 ```
