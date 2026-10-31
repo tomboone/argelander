@@ -44,6 +44,8 @@
         </tr>
         <tr><th>Band</th><td>{{ p.band or "—" }}</td><td>{{ t.vsx_band or "—" }}</td></tr>
         <tr><th>Epoch (BJD)</th><td class="number">{{ num(p.epoch_bjd, "%.5f") }}</td><td class="muted">—</td></tr>
+        {# VSX's revision form takes the epoch in HJD. Four decimals is the Manual's ceiling, for short periods; an integer does for a long-period Mira. #}
+        <tr><th>Epoch (HJD)</th><td class="number">{{ num(page.epoch_hjd, "%.4f") }}</td><td class="muted">—</td></tr>
         <tr><th>Eclipse or rise (% of period)</th><td class="number">{{ num(p.eclipse_duration_pct, "%.1f") }}</td><td class="muted">—</td></tr>
         <tr><th>Confidence</th><td class="number">{{ num(p.confidence, "%.3f") }}</td><td class="muted">—</td></tr>
       </tbody>

@@ -976,6 +976,13 @@ from the grilling session:
   `network_mode: service:tailscale` so it is reachable only on the personal tailnet.
   `fetcher` and `analyzer` mount `$CACHE_DIR`, `$PLOTS_DIR` and `$ASTRO_CACHE_DIR` from the
   USB SSD. Memory limits: postgres 1 GB, analyzer 3 GB, fetcher 1 GB, api 512 MB.
+  *Amended 2026-10-25 (NEU-1948, ops One Tailnet Decision 12):* the api no longer runs in the
+  sidecar's namespace. It joins the Compose network and publishes nothing; `web` binds
+  `0.0.0.0:8000`. The sidecar (container hostname `argelander-tailscale`, tagged `tag:app`)
+  serves HTTPS 443 at `https://argelander.tail1afe5a.ts.net` and proxies to `http://api:8000`
+  (`deploy/tailscale/serve.json`), as closinglineup's does. That ends the plain-HTTP URL, the
+  refused IPv6 tailnet connections and the api stranded on a dead namespace after a sidecar
+  restart Compose did not make.
 - `compose.dev.yaml` adds `jupyter` (same image plus jupyterlab, mounts `notebooks/` and
   the cache) and exposes postgres on localhost; dev runs through `task up`.
   *Amended 2026-10-21 (NEU-1722):* it also has `fetcher` and `analyzer`, on the `app` image
@@ -1037,6 +1044,14 @@ from the grilling session:
   the profile is dropped.
   *Amended 2026-10-21 (NEU-1728):* the `api` profile the amendments above describe is gone;
   §9 has the review app's Compose changes.
+  *Amended 2026-10-25 (NEU-1949):* the mini no longer builds. `compose.yaml` runs
+  `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup` (`latest`, or the
+  `sha-<7>` that `IMAGE_TAG` in `.env` pins), published by CI on every push to `main`; the
+  builds live in `compose.dev.yaml` alone. A `watchtower` service scoped to `argelander`
+  polls GHCR every 5 minutes and recreates `api`, `fetcher`, `analyzer` and `backup` on a
+  new image. `api` runs `db-upgrade` before `web`, the only service that migrates; the
+  workers wait for the schema head. `task deploy` is first setup and recovery only: `git
+  pull --ff-only`, `pull`, `up -d --remove-orphans`, `ps`.
 - Monitoring: JSON logs to stdout; Uptime Kuma (personal instance on the mini) checks
   `/healthz` over the tailnet; the backup job logs success/failure. No error tracker.
 

@@ -76,10 +76,12 @@ def fetch_worker() -> None:
     """Claim fetch Jobs, fetch every survey, index the Cache and queue analysis, until stopped.
 
     Refuses to start when CACHE_DIR has no Cache marker (the USB SSD is not mounted), unless
-    ALLOW_UNMOUNTED_CACHE=1.
+    ALLOW_UNMOUNTED_CACHE=1, and waits up to SCHEMA_WAIT_TIMEOUT seconds for the database to
+    reach the image's head revision, exiting if it does not.
     """
     # Imported here so `version` and --help never load the fetchers and SQLAlchemy.
     from argelander.config import get_settings
+    from argelander.db.migrations import SchemaNotAtHead
     from argelander.db.session import sync_session_factory
     from argelander.fetch import worker
     from argelander.logs import configure_logging
@@ -87,7 +89,7 @@ def fetch_worker() -> None:
     configure_logging()
     try:
         worker.main(get_settings(), sync_session_factory())
-    except worker.CacheNotMounted as error:
+    except (worker.CacheNotMounted, SchemaNotAtHead) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
 
@@ -98,11 +100,13 @@ def analyze_worker() -> None:
     stopped.
 
     Refuses to start when CACHE_DIR has no Cache marker (the USB SSD is not mounted), unless
-    ALLOW_UNMOUNTED_CACHE=1.
+    ALLOW_UNMOUNTED_CACHE=1, and waits up to SCHEMA_WAIT_TIMEOUT seconds for the database to
+    reach the image's head revision, exiting if it does not.
     """
     # Imported here so `version` and --help never load the analysis chain and SQLAlchemy.
     from argelander.analysis import worker
     from argelander.config import get_settings
+    from argelander.db.migrations import SchemaNotAtHead
     from argelander.db.session import sync_session_factory
     from argelander.fetch.worker import CacheNotMounted
     from argelander.logs import configure_logging
@@ -110,7 +114,7 @@ def analyze_worker() -> None:
     configure_logging()
     try:
         worker.main(get_settings(), sync_session_factory())
-    except CacheNotMounted as error:
+    except (CacheNotMounted, SchemaNotAtHead) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
 
@@ -248,11 +252,11 @@ def web(
     host: Annotated[
         str,
         typer.Option(
-            help="Address to listen on. Prod keeps loopback, where the tailscale sidecar hands "
-            "it tailnet connections (deploy/tailscale.md); the dev stack listens on 0.0.0.0 to "
-            "publish the port."
+            help="Address to listen on. Every IPv4 interface, so the tailscale sidecar can proxy "
+            "to it over the Compose network (deploy/tailscale.md) and the dev stack can publish "
+            "the port; prod publishes nothing on the host."
         ),
-    ] = "127.0.0.1",
+    ] = "0.0.0.0",
     port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
     reload: Annotated[
         bool, typer.Option("--reload", help="Restart on source changes (dev only).")

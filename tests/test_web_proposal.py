@@ -202,6 +202,7 @@ def _proposal(
     session: Session,
     analysis: Analysis,
     period: float | None = 0.5123456,
+    epoch_bjd: float | None = 2459000.12345,
     confidence: str = "0.800",
     status: ProposalStatus = ProposalStatus.QUEUED,
     proposed_type: str = "RRAB",
@@ -213,7 +214,7 @@ def _proposal(
         pipeline_version=analysis.pipeline_version,
         proposed_type=proposed_type,
         period=period,
-        epoch_bjd=2459000.12345,
+        epoch_bjd=epoch_bjd,
         mag_max=14.05,
         mag_min=14.85,
         band="g",
@@ -410,6 +411,43 @@ def test_the_page_shows_the_proposal_beside_vsx_and_all_the_evidence(
     assert "region instability_strip" in html
     assert "Class RR (score 0.93)" in html
     assert "period 0.5123 d" in html
+
+
+def _field_row(html: str, label: str) -> tuple[str, str]:
+    """The Proposal-and-VSX table's row for `label`: (proposed, VSX now)."""
+    (row,) = re.findall(
+        rf"<tr><th>{re.escape(label)}</th><td[^>]*>([^<]*)</td><td[^>]*>([^<]*)</td></tr>", html
+    )
+    return row
+
+
+def test_the_epoch_is_shown_in_hjd_under_the_bjd_for_the_revision_form(
+    sessions: sessionmaker[Session], client: TestClient
+) -> None:
+    with sessions.begin() as session:
+        proposal_id = _proposal(session, _analysis(session, _target(session), "0.1.0")).id
+
+    html = client.get(f"/proposals/{proposal_id}").text
+
+    assert html.index("<th>Epoch (BJD)</th>") < html.index("<th>Epoch (HJD)</th>")
+    hjd, vsx = _field_row(html, "Epoch (HJD)")
+    # VSX takes HJD to four decimals; it trails BJD_TDB by about TDB − UTC, 69 s.
+    assert re.fullmatch(r"\d{7}\.\d{4}", hjd)
+    assert float(hjd) == pytest.approx(2459000.12345 - 0.0008, abs=0.0001)
+    assert vsx == "—"
+
+
+def test_a_proposal_without_an_epoch_shows_a_dash_for_its_hjd(
+    sessions: sessionmaker[Session], client: TestClient
+) -> None:
+    with sessions.begin() as session:
+        analysis = _analysis(session, _target(session), "0.1.0")
+        proposal_id = _proposal(session, analysis, proposed_type="SR", epoch_bjd=None).id
+
+    response = client.get(f"/proposals/{proposal_id}")
+
+    assert response.status_code == 200
+    assert _field_row(response.text, "Epoch (HJD)") == ("—", "—")
 
 
 def test_previous_and_next_step_through_the_queue_in_its_order(

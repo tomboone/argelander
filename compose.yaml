@@ -38,12 +38,12 @@ x-usb: &usb
   bind:
     create_host_path: false
 
-# One image, one package (spec §3): each service is the prod image with its own command.
+# One image, one package (spec §3): each service is the prod image with its own command. The
+# image is pulled from GHCR, published by .github/workflows/image.yml on every push to main;
+# compose.dev.yaml builds it locally instead. IMAGE_TAG pins a `sha-<7>` tag to roll back
+# (deploy/README.md).
 x-app: &app
-  build:
-    context: .
-    target: prod
-  image: argelander:latest
+  image: ghcr.io/tomboone/argelander:${IMAGE_TAG:-latest}
   init: true
   restart: unless-stopped
   environment: *environment
@@ -51,6 +51,9 @@ x-app: &app
   depends_on:
     postgres:
       condition: service_healthy
+  labels: &watchtower-labels
+    - com.centurylinklabs.watchtower.enable=true
+    - com.centurylinklabs.watchtower.scope=argelander
 
 services:
   postgres:
@@ -96,14 +99,13 @@ services:
 
   # Nightly pg_dump into a restic repository on Backblaze B2, at 03:30 local (deploy/restore.md).
   # Only Postgres is backed up: the Cache can be downloaded again and the plots redrawn. Its
-  # own image, not the app's. The repository and its credentials come from the mini's .env;
-  # without them the service refuses to start and says which are missing. pg_dump takes a
-  # libpq URL, so DATABASE_URL here has no `+psycopg` driver suffix, and no password: in the
-  # URL it would sit in pg_dump's arguments, which `ps` on the host shows. libpq reads
-  # PGPASSWORD instead.
+  # own image, not the app's, published and pinned alongside it. The repository and its
+  # credentials come from the mini's .env; without them the service refuses to start and says
+  # which are missing. pg_dump takes a libpq URL, so DATABASE_URL here has no `+psycopg`
+  # driver suffix, and no password: in the URL it would sit in pg_dump's arguments, which `ps`
+  # on the host shows. libpq reads PGPASSWORD instead.
   backup:
-    build: deploy/backup
-    image: argelander-backup:latest
+    image: ghcr.io/tomboone/argelander-backup:${IMAGE_TAG:-latest}
     init: true
     restart: unless-stopped
     mem_limit: 512m
@@ -118,50 +120,52 @@ services:
     volumes:
       - restic-cache:/var/cache/restic
     logging: *logging
+    labels: *watchtower-labels
     depends_on:
       postgres:
         condition: service_healthy
 
-  # The api's network namespace: its own node, `argelander`, on the personal tailnet; the host
-  # is on no tailnet (deploy/tailscale.md). Userspace networking, like the mini's other
-  # sidecars, so it needs no NET_ADMIN or /dev/net/tun: tailscaled hands each inbound tailnet
-  # connection to 127.0.0.1 in the namespace, where the api listens on 8000. Nothing is
-  # published, so the port is closed to the LAN and to the host; `web` binds 127.0.0.1, not
-  # 0.0.0.0, so it is closed on the namespace's Compose-network address too.
+  # The api's own node, `argelander`, on the personal tailnet, tagged tag:app; the host's own
+  # tailnet node is kumadrome (deploy/tailscale.md). Serve terminates HTTPS on 443 at
+  # https://argelander.tail1afe5a.ts.net and proxies to http://api:8000 over the Compose network
+  # (deploy/tailscale/serve.json), the same pattern as kumadrome's other apps. Userspace
+  # networking, so it needs no NET_ADMIN or /dev/net/tun.
   tailscale:
     image: tailscale/tailscale:stable
+    # Never the name of a service it proxies: Docker maps a container's own hostname to itself in
+    # /etc/hosts, so a proxy to that name would dial the sidecar (Navidrome's 502). The tailnet
+    # name is TS_HOSTNAME.
+    hostname: argelander-tailscale
     restart: unless-stopped
     mem_limit: 128m
     environment:
       TS_HOSTNAME: argelander
-      # One-time auth key from the personal tailnet. Blank it once the state volume holds the
-      # node key.
+      # One-time auth key from the personal tailnet, tagged tag:app. Blank it once the state
+      # volume holds the node key.
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_AUTH_ONCE: "true"
-      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-tags=tag:app}
       TS_STATE_DIR: /var/lib/tailscale
       TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
     volumes:
+      # The directory, not the file: containerboot watches it, so a git pull that replaces
+      # serve.json still reaches the running sidecar.
+      - ./deploy/tailscale:/config:ro
       - tailscale-state:/var/lib/tailscale
     logging: *logging
 
-  # The review app reads Postgres and serves the plots, read-only. It is reached only on the
-  # tailnet, at http://argelander:8000, through the tailscale sidecar's network namespace;
-  # Uptime Kuma watches its /healthz there (NEU-1727). It mounts only the plots, so the
-  # astropy cache stays at the image's writable default.
+  # The review app reads Postgres and serves the plots, read-only. It is on the Compose network
+  # and publishes nothing on the host: the tailscale sidecar is the one way in, at
+  # https://argelander.tail1afe5a.ts.net, where Uptime Kuma watches its /healthz (NEU-1727). It
+  # mounts only the plots, so the astropy cache stays at the image's writable default.
+  # It migrates before serving, so a Watchtower update that brings a migration applies it. Only
+  # the api migrates, so two containers never race on the same upgrade; the workers wait for
+  # the schema head instead (docs/runbook.md §10).
   api:
     <<: *app
-    command: ["argelander", "web"]
+    command: ["sh", "-c", "argelander db-upgrade && exec argelander web"]
     mem_limit: 512m
-    network_mode: service:tailscale
-    depends_on:
-      postgres:
-        condition: service_healthy
-      # A restarted sidecar has a new namespace, so Compose restarts the api with it. A restart
-      # Compose does not make (a crash) strands the api; see deploy/tailscale.md.
-      tailscale:
-        condition: service_started
-        restart: true
     environment:
       DATABASE_URL: *database-url
       PLOTS_DIR: /usb/plots
@@ -180,6 +184,26 @@ services:
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"
       interval: 1m
       timeout: 10s
+
+  # Polls GHCR every 5 minutes and recreates only enabled containers in the `argelander` scope
+  # (the api, the workers and the backup) on a new image, removing the old one. It leaves
+  # postgres and the tailscale sidecar alone, and the other stacks' containers on the mini, and
+  # their own Watchtowers. The instance carries its own scope label, as Watchtower's
+  # multiple-instance docs require.
+  watchtower:
+    image: nickfedor/watchtower:1.23.2
+    command: ["--label-enable", "--scope", "argelander", "--interval", "300", "--cleanup"]
+    restart: unless-stopped
+    mem_limit: 128m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "/watchtower", "--health-check"]
+      interval: 1m
+      timeout: 10s
+    labels:
+      - com.centurylinklabs.watchtower.scope=argelander
 
 volumes:
   postgres-data:

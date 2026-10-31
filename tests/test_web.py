@@ -164,7 +164,7 @@ def test_a_request_whose_route_raises_is_logged_as_a_500(
     assert vars(record)["status"] == 500
 
 
-def test_the_web_command_runs_uvicorn_on_loopback_port_8000(
+def test_the_web_command_runs_uvicorn_on_every_interface_port_8000(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -176,7 +176,7 @@ def test_the_web_command_runs_uvicorn_on_loopback_port_8000(
     (options,) = calls
     assert options["app"] == "argelander.web.app:create_app"
     assert options["factory"] is True
-    assert options["host"] == "127.0.0.1"
+    assert options["host"] == "0.0.0.0"
     assert options["port"] == 8000
     assert options["access_log"] is False
     assert options["log_config"] == dict_config()
