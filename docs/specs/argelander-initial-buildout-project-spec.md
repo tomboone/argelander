@@ -365,9 +365,21 @@ deleted in the same job that extracted the light curve.
   `get_block_servers` names. The target nearest the position wins. Kept points have
   `quality == "G"` and `mag_err` below 99 (non-detections are upper limits with
   `mag_err` 99.99); the band comes from the camera by the client's camera lists. An empty
-  server list (maintenance) is a transient failure. The service was down while this was
-  built, so the offline test replays a constructed response in the documented schema;
-  recording a real one, the first live fetch and the §14 V-or-g note follow in NEU-1764.
+  server list (maintenance) is a transient failure. The offline test replays a recorded
+  Sky Patrol response (NEU-1764).
+
+  *Amended 2026-11-02 (NEU-1764):* Sky Patrol's `jd` is a UTC JD with no light-travel
+  correction, not the HJD this contract and §6 step 2 assumed. For 257 V images of
+  CSS_J173907.6+550053, `jd` differs from the HJD the ASAS-SN Variable Stars Database
+  (an older pipeline) gives for the same image by the heliocentric correction, −85 to
+  +104 s, and agrees with it to within 11 s once that correction is applied; read as an
+  HJD it is up to 114 s off. The 11 s left is −0.5 s − 8 % of the correction with 2.6 s of
+  scatter, a scale one of the two pipelines applies and neither documents. It bounds how
+  well an ASAS-SN time is known: about the 0.0001-day (8.6 s) step of the finest epoch
+  VSX accepts, which it justifies only for very short periods with good photometry. The fetcher converts it as a JD from the geocentre, and
+  `meta["time_system"]` is `"JD UTC"`. The real response matched the documented schema;
+  it also carries a pandas index column, `fwhm` as a string and a third quality grade,
+  `"U"`, none of which the fetcher reads.
 
 Per-archive concurrency is a local semaphore in `fetch/base.py` (defaults: IRSA 2, MAST 2,
 Gaia 1, ASAS-SN 2) with exponential backoff on HTTP 429/5xx and a per-Target
@@ -434,6 +446,11 @@ Order of operations in `analysis/worker.py` for one Target:
    Almanac's low-precision Sun, not from astropy. TESS is checked against the BTJD
    definition and Gaia against IAU 2006 Resolution B3. All agree within 1 s; ZTF and
    ASAS-SN agree within 0.05 s.
+
+   *Amended 2026-11-02 (NEU-1764):* ASAS-SN Sky Patrol reports a UTC JD, not an HJD
+   (§5.1), so it goes to BJD_TDB the way ZTF's MJD does, from the geocentre. The τ Ceti
+   reference now checks it with the JD directly, and the Almanac-built HJD checks
+   `bjd_tdb_to_hjd`, the conversion VSX's epoch still needs.
 3. **Clean** (`clean.py`): drop flagged points, sigma-clip at 5σ around a running median,
    require ≥ 30 points per band to proceed.
 
@@ -1297,3 +1314,53 @@ short-timescale variables, which are not in `vari_classifier_result`. So for the
 Slice the hypothesis the analyzer tests first is the short-timescale frequency, the least
 trusted of Gaia's periods (§5.1). 258 Targets have a Gaia neighbour within 20″, and 426 a 2MASS
 designation. A second run added no Targets and no Jobs.
+
+*Resolved 2026-11-02 (NEU-1764)*, from live Sky Patrol fetches of all 27 fixture stars
+(G 13.0–15.7) with the fetcher, after its cleaning:
+
+**ASAS-SN g or V.** Neither on its own: the fetcher keeps both as separate Light Curves, and
+each carries a period the other cannot reach. g is the stronger band. It has about twice
+the points (median 662 against 323, ratio 2.2 per star), the longer baseline (7.1–7.7 years,
+September 2017 to June 2025, against 3.9–6.5 years for V) and is the only band ASAS-SN
+still takes. V ended with the V cameras in October–November 2018 but reaches back to
+2012–2014, so it adds four to six years before g starts; the two overlap only from late
+2017 to late 2018. At 15 mag their precision is the same: the median reported error of the
+ten stars at 14.7–15.3 in the band is 0.022 in V and 0.017 in g, and the constant Gaia DR3
+1435683567052954368 (G 15.0) has a robust scatter (1.4826 × MAD) of 0.066 in V and 0.058 in g,
+against 0.018–0.027 in both for the two constant stars at G 13.7–14.0. A Lomb–Scargle
+periodogram of each band alone recovers the published period (or half of it, for the
+eclipsing binaries) within 0.1 % for 18 of the 20 positives in V and 17 in g. Both miss the
+55.5-day SR and the 12.09-day ROT by 0.1–0.6 %, and g also misses the 42.25-day SR,
+finding a 0.4994-day alias of the daily sampling instead. Both bands find the true period
+of both alias traps, not the published one. A star's median V and g magnitudes differ by
+0.0–0.8, so the two are never merged into one Light Curve.
+
+| Star | G | V points | V years | g points | g years |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| NSVS 2887379 | 13.91 | 323 | 5.9 | 716 | 7.6 |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 298 | 4.6 | 653 | 7.7 |
+| LINEAR 20427289 | 15.34 | 295 | 4.7 | 592 | 7.7 |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 818 | 4.7 | 1,781 | 7.7 |
+| DW Dra | 13.04 | 644 | 6.1 | 1,452 | 7.7 |
+| T-Dra0-09947 | 15.08 | 339 | 6.5 | 649 | 7.4 |
+| 1SWASP J191601.56+560055.3 | 13.60 | 892 | 6.0 | 1,811 | 7.7 |
+| CSS_J173907.6+550053 | 14.69 | 338 | 5.9 | 598 | 7.3 |
+| V0364 Dra | 14.85 | 295 | 4.7 | 591 | 7.7 |
+| V0502 Dra | 14.92 | 297 | 4.6 | 649 | 7.7 |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 295 | 4.5 | 662 | 7.7 |
+| V0379 Dra | 13.33 | 583 | 4.7 | 1,421 | 7.7 |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 279 | 4.6 | 490 | 7.3 |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 316 | 5.9 | 708 | 7.7 |
+| V0553 Dra | 13.78 | 545 | 4.7 | 1,150 | 7.7 |
+| KO Cep | 13.06 | 170 | 3.9 | 447 | 7.1 |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 549 | 4.7 | 1,718 | 7.7 |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 258 | 4.7 | 467 | 7.7 |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 256 | 5.2 | 551 | 7.7 |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 650 | 6.0 | 1,435 | 7.7 |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 336 | 6.0 | 582 | 7.7 |
+| CSS_J181701.4+514940 | 14.41 | 323 | 6.0 | 982 | 7.7 |
+| CSS_J160212.7+530724 | 15.70 | 313 | 6.5 | 591 | 7.4 |
+| CSS_J172350.6+504650 | 14.48 | 295 | 5.9 | 581 | 7.3 |
+| Gaia DR3 1435854639894380800 | 13.66 | 323 | 5.9 | 715 | 7.6 |
+| Gaia DR3 1434111643382583936 | 13.96 | 648 | 5.6 | 1,271 | 7.7 |
+| Gaia DR3 1435683567052954368 | 15.01 | 855 | 5.3 | 1,743 | 7.7 |
