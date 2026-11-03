@@ -30,7 +30,7 @@ from argelander.analysis.shape import magnitudes
 from argelander.catalog.gaia import GaiaRecord, records_from_tables
 from argelander.classify import registry, types
 from argelander.classify.confidence import best_type, scores
-from argelander.classify.propose import Elements, elements, range_curve
+from argelander.classify.propose import Elements, elements, epoch_curve, range_curve
 from argelander.classify.rules.gaia import target_gaia_types
 from argelander.db.models import Target
 from argelander.lightcurve import LightCurve, load_target
@@ -160,13 +160,15 @@ def test_alias_trap_keeps_its_type_at_the_true_period(star: dict, analyses: dict
     assert proposed == star["published_type"], scored
 
 
-def proposal_of(star: dict, analyses: dict) -> tuple[Elements, LightCurve]:
-    """`star`'s Proposal and the band its range and epoch were read from."""
+def proposal_of(star: dict, analyses: dict) -> tuple[Elements, LightCurve, LightCurve]:
+    """`star`'s Proposal, the band its range was read from and the band its epoch was."""
     analysis, cleaned = analyses[star["star"]]
-    found, lead = elements(analysis, cleaned, target_of(star)), range_curve(cleaned)
+    contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
+    found = elements(analysis, cleaned, target_of(star))
+    ranged, timed = range_curve(cleaned, contaminated), epoch_curve(cleaned)
     assert found.proposed_type == star["published_type"], found.proposed_type
-    assert lead is not None
-    return found, lead
+    assert ranged is not None and timed is not None
+    return found, ranged, timed
 
 
 def positives(*codes: str) -> list[dict]:
@@ -188,7 +190,7 @@ DURATION_PCT = {"EA": (1.0, 30.0), "RRAB": (10.0, 40.0), "EW": None}
 @pytest.mark.gate
 @pytest.mark.parametrize("star", positives(*DURATION_PCT), ids=lambda s: s["star"])
 def test_proposal_rise_or_eclipse_duration(star: dict, analyses: dict) -> None:
-    found, _ = proposal_of(star, analyses)
+    found, _, _ = proposal_of(star, analyses)
     expected = DURATION_PCT[star["published_type"]]
     if expected is None:
         assert found.rise_or_eclipse is None
@@ -202,11 +204,21 @@ def test_proposal_rise_or_eclipse_duration(star: dict, analyses: dict) -> None:
 def test_proposal_range_is_the_binned_curve_not_its_extreme_points(
     star: dict, analyses: dict
 ) -> None:
-    found, lead = proposal_of(star, analyses)
-    _, mag, _ = magnitudes(lead)
+    found, ranged, _ = proposal_of(star, analyses)
+    _, mag, _ = magnitudes(ranged)
     assert found.mag_max is not None and found.mag_min is not None
     assert mag.min() < found.mag_max < np.median(mag) < found.mag_min < mag.max()
-    assert found.band == lead.band and not found.min_is_amplitude
+    assert found.band == ranged.band and not found.min_is_amplitude
+
+
+@pytest.mark.gate
+def test_proposal_range_is_in_v_when_asassn_v_is_clean(analyses: dict) -> None:
+    """VSX prefers V: V0364 Dra's ASAS-SN V curve is clean, so its range is read in V although
+    other bands have as many points or more (NEU-2185)."""
+    star = next(s for s in STARS if s["star"] == "V0364 Dra")
+    found, ranged, timed = proposal_of(star, analyses)
+    assert (ranged.survey, found.band) == ("asassn", "V")
+    assert (timed.survey, timed.band) != ("asassn", "V")
 
 
 @pytest.mark.gate
@@ -215,9 +227,9 @@ def test_proposal_epoch_is_at_primary_minimum(star: dict, analyses: dict) -> Non
     """Folded at the Proposal's period and epoch, the binned curve's faintest bin is the
     one that starts or ends at phase 0: the epoch is the faintest bin's centre, and re-cutting
     the fold there moves the bin edges by half a bin."""
-    found, lead = proposal_of(star, analyses)
+    found, _, timed = proposal_of(star, analyses)
     assert found.period is not None and found.epoch_bjd is not None
-    time, mag, _ = magnitudes(lead)
+    time, mag, _ = magnitudes(timed)
     centres, medians = binned_median(fold(time, found.period, found.epoch_bjd), mag)
     width = 1.0 / int(np.clip(mag.size // POINTS_PER_BIN, MIN_BINS, MAX_BINS))
     faintest = float(centres[medians.argmax()])

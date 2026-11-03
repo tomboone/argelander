@@ -11,13 +11,23 @@ Evidence says so. `CST` and `L` need no period and are proposed as they score. A
 Proposal carries the Confidence of the type that scored best, so a Target whose sources
 disagree shows up low in the queue with the reason in its evidence.
 
-The range and the epoch come from one band, the range band (`range_curve`): the one with the
-most points among magnitude bands with a VSX passband, Gaia's few dozen epochs last. TESS's
-relative flux is a last resort, since VSX takes a calibrated range in one band over a mean and
-an amplitude; when it is all there is, `mag_max` is Gaia's mean G, `mag_min` the TESS
-amplitude in magnitudes, and `min_is_amplitude` is set. Folded at the period, the band's
-binned median is the curve the phase plot draws (`plots.phase.binned_median`): its brightest
-and faintest bins are the range and set the epoch. `submission.png` leads with the same band.
+The range and the epoch come from two bands. The range band (`range_curve`) is ASAS-SN V,
+as VSX prefers magnitudes in V, when V has enough points and ASAS-SN is not contaminated: a
+neighbour inside its 17" aperture adds light to every point, and a contaminated V range is
+worse than a clean one in another band. Otherwise it is the epoch band (`epoch_curve`): the
+most points among magnitude bands with a VSX passband, TESS's relative flux next and Gaia's
+few dozen epochs last. The epoch, and the eclipse duration BLS fits, come from the epoch band
+whatever the range band is: more points and a later baseline pin the fold down better, and
+ASAS-SN V stopped in 2018. A tie in points goes by `BAND_ORDER`, never by list order, so a
+Proposal reads the same bands every run.
+
+TESS is a last resort for the range, since VSX takes a calibrated range in one band over a
+mean and an amplitude; when it is all there is, `mag_max` is Gaia's mean G, `mag_min` the
+TESS amplitude in magnitudes, and `min_is_amplitude` is set. Folded at the period, a band's
+binned median is the curve the phase plot draws (`plots.phase.binned_median`): the range
+band's brightest and faintest bins are the range, the epoch band's set the epoch.
+`submission.png` leads with the range band, so the moderator sees the curve the range was
+read from.
 
 The durations are measured, not read off those bins, whose width (4 % of the cycle at 25
 bins) is a third of an RR Lyrae star's rise: EA's eclipse is the box BLS fits at the period,
@@ -30,6 +40,7 @@ Target becomes `superseded`, pointing at the new one. An `approved` or `rejected
 one a Submission references, is never touched; the new one is queued beside it.
 """
 
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 from pathlib import Path
@@ -66,6 +77,26 @@ from argelander.plots import plot_dir, render_all
 from argelander.plots.phase import binned_median, fold
 from argelander.submission.form import PASSBANDS
 
+# The band a Proposal's range is read from when it can be (spec §9: "preferably in V").
+RANGE_BAND = ("asassn", "V")
+
+# How a tie in points between candidate bands resolves, first wins: on trimmed fixtures every
+# band can hold the same number of points, and list order would pick one by accident.
+BAND_ORDER = {
+    band: rank
+    for rank, band in enumerate(
+        [
+            ("ztf", "g"),
+            ("ztf", "r"),
+            ("ztf", "i"),
+            ("asassn", "g"),
+            ("asassn", "V"),
+            ("tess", "T"),
+            ("gaia", "G"),
+        ]
+    )
+}
+
 
 @dataclass(frozen=True)
 class Elements:
@@ -81,7 +112,7 @@ class Elements:
     mag_max: float | None
     mag_min: float | None  # an amplitude, not a magnitude, when `min_is_amplitude`
     min_is_amplitude: bool
-    band: str | None  # the VSX passband of the range band
+    band: str | None  # the VSX passband of the range band, not of the epoch band
     evidence: tuple[Evidence, ...]
 
     @property
@@ -109,10 +140,11 @@ def elements(analysis: Analysis, cleaned: list[LightCurve], target: Target) -> E
         band=None,
         evidence=evidence,
     )
-    lead = range_curve(cleaned)
-    if lead is None:
+    contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
+    ranged, timed = range_curve(cleaned, contaminated), epoch_curve(cleaned)
+    if ranged is None or timed is None:
         return found
-    return _read_curve(found, lead, analysis, target)
+    return _read_curves(found, ranged, timed, analysis, target)
 
 
 def proposed_type(best: str | None, agreement: Agreement | None) -> str:
@@ -125,15 +157,36 @@ def proposed_type(best: str | None, agreement: Agreement | None) -> str:
     return best
 
 
-def range_curve(curves: list[LightCurve]) -> LightCurve | None:
-    """The band the range and epoch are read from and `submission.png` leads with: the most
-    points among bands with a VSX passband, magnitude bands before TESS flux, Gaia last."""
-    candidates = [lc for lc in curves if (lc.survey, lc.band) in PASSBANDS and sufficient(lc)]
+def range_curve(curves: list[LightCurve], contaminated: Collection[str]) -> LightCurve | None:
+    """The band the range is read from and `submission.png` leads with: ASAS-SN V when it has
+    enough points and ASAS-SN is not among the `contaminated` surveys, else `epoch_curve`."""
+    if RANGE_BAND[0] not in contaminated:
+        preferred = [lc for lc in _candidates(curves) if (lc.survey, lc.band) == RANGE_BAND]
+        if preferred:
+            return max(preferred, key=lambda lc: lc.time.size)
+    return epoch_curve(curves)
+
+
+def epoch_curve(curves: list[LightCurve]) -> LightCurve | None:
+    """The band the epoch and eclipse duration are read from: the most points among bands with
+    a VSX passband, magnitude bands before TESS flux, Gaia last, a tie by `BAND_ORDER`."""
+    candidates = _candidates(curves)
     if not candidates:
         return None
     return max(
-        candidates, key=lambda lc: (lc.survey != "gaia", lc.value_kind == "mag", lc.time.size)
+        candidates,
+        key=lambda lc: (
+            lc.survey != "gaia",
+            lc.value_kind == "mag",
+            lc.time.size,
+            -BAND_ORDER[(lc.survey, lc.band)],
+        ),
     )
+
+
+def _candidates(curves: list[LightCurve]) -> list[LightCurve]:
+    """The Light Curves a Proposal can read from: a VSX passband and enough points."""
+    return [lc for lc in curves if (lc.survey, lc.band) in PASSBANDS and sufficient(lc)]
 
 
 def propose(
@@ -196,8 +249,10 @@ def draw(
     plots_dir: Path,
 ) -> None:
     """Render every plot of the Analysis at its Proposal's type, period and epoch, and record
-    each in `row.plots` by its path relative to `plots_dir`."""
-    lead = range_curve(cleaned)
+    each in `row.plots` by its path relative to `plots_dir`. `submission.png` leads with the
+    range band."""
+    contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
+    lead = range_curve(cleaned, contaminated)
     paths = render_all(
         analysis,
         cleaned,
@@ -215,16 +270,18 @@ def _unsubmitted() -> ColumnElement[bool]:
     return ~exists().where(Submission.proposal_id == Proposal.id)
 
 
-def _read_curve(found: Elements, lead: LightCurve, analysis: Analysis, target: Target) -> Elements:
-    """`found` with the range, band, epoch and rise or eclipse duration read off `lead`."""
-    time, mag, _ = magnitudes(lead)
+def _read_curves(
+    found: Elements, ranged: LightCurve, timed: LightCurve, analysis: Analysis, target: Target
+) -> Elements:
+    """`found` with the range and band read off `ranged`, the range band, and the epoch and
+    rise or eclipse duration off `timed`, the epoch band."""
+    time, mag, _ = magnitudes(ranged)
     code, period, agreement = found.proposed_type, found.period, analysis.agreement
     epoch = rise_or_eclipse = None
     if period is None:
         mag_max, mag_min = (float(p) for p in np.percentile(mag, APERIODIC_PERCENTILES))
     else:
-        centres, medians = binned_median(fold(time, period, time[0]), mag)
-        brightest, faintest = float(centres[medians.argmin()]), float(centres[medians.argmax()])
+        _, medians = binned_median(fold(time, period, time[0]), mag)
         if code in CYCLE_TO_CYCLE_TYPES:
             mag_max, mag_min = _cycle_range(time, mag, period) or (medians.min(), medians.max())
         else:
@@ -234,15 +291,14 @@ def _read_curve(found: Elements, lead: LightCurve, analysis: Analysis, target: T
         strong = agreement is not None and (
             len(agreement.agreed_sources) >= STRONG_AGREEMENT_SOURCES
         )
-        if code not in CYCLE_TO_CYCLE_TYPES or strong:
-            at = {"max": brightest, "min": faintest}.get(spec.epoch_at or "none")
-            epoch = _epoch(time, period, at) if at is not None else None
+        if spec.epoch_at in ("max", "min") and (code not in CYCLE_TO_CYCLE_TYPES or strong):
+            epoch = _epoch_at(timed, period, spec.epoch_at)
         if spec.rise_duration_rule == "eclipse":
-            rise_or_eclipse = eclipse_duration(lead, period)
+            rise_or_eclipse = eclipse_duration(timed, period)
         elif spec.rise_duration_rule == "rise" and analysis.shape is not None:
             rise_or_eclipse = analysis.shape.rise
 
-    min_is_amplitude = lead.value_kind == "flux"
+    min_is_amplitude = ranged.value_kind == "flux"
     if min_is_amplitude:
         mag_max, mag_min = target.gaia_g, mag_min - mag_max
     return replace(
@@ -252,8 +308,18 @@ def _read_curve(found: Elements, lead: LightCurve, analysis: Analysis, target: T
         mag_max=float(mag_max) if mag_max is not None else None,
         mag_min=float(mag_min),
         min_is_amplitude=min_is_amplitude,
-        band=PASSBANDS[(lead.survey, lead.band)],
+        band=PASSBANDS[(ranged.survey, ranged.band)],
     )
+
+
+def _epoch_at(lc: LightCurve, period: float, at: str) -> float:
+    """The epoch of `lc`'s maximum (`at` "max") or minimum ("min"): the brightest or faintest
+    bin of its binned phase curve."""
+    time, mag, _ = magnitudes(lc)
+    centres, medians = binned_median(fold(time, period, time[0]), mag)
+    # Brighter is a smaller magnitude: maximum light is the smallest median.
+    phase = float(centres[medians.argmin() if at == "max" else medians.argmax()])
+    return _epoch(time, period, phase)
 
 
 def _cycle_range(time: np.ndarray, mag: np.ndarray, period: float) -> tuple[float, float] | None:
