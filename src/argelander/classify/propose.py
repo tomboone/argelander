@@ -317,6 +317,7 @@ def _epoch_at(lc: LightCurve, period: float, at: str) -> float:
     bin of its binned phase curve."""
     time, mag, _ = magnitudes(lc)
     centres, medians = binned_median(fold(time, period, time[0]), mag)
+    # Brighter is a smaller magnitude: maximum light is the smallest median.
     phase = float(centres[medians.argmin() if at == "max" else medians.argmax()])
     return _epoch(time, period, phase)
 

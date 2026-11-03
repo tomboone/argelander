@@ -66,6 +66,15 @@ The classifier's candidate VSX revision for one Target: type, period, epoch,
 magnitude range with band, and confidence, with the Analysis it rests on.
 _Avoid_: classification, prediction, result, candidate
 
+**Range band**:
+The Light Curve a Proposal's magnitude range and band are read from, and that
+`submission.png` leads with: ASAS-SN V when it has enough points and ASAS-SN is
+not contaminated, else the epoch band.
+
+**Epoch band**:
+The Light Curve a Proposal's epoch and eclipse duration are read from: the most
+points among magnitude bands with a VSX passband.
+
 **Confidence**:
 The classifier's 0–1 score for a Proposal, built from explainable rule evidence.
 Sorts the review queue; never auto-approves anything.
