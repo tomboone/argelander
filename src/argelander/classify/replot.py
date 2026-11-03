@@ -5,11 +5,11 @@ drawn again at its newest Proposal's type, period and epoch, and `analyses.plots
 Nothing else is recomputed or written: no rule runs, and the Analysis and Proposal rows stand.
 
 Two things are rebuilt because the database deliberately does not store them. The Light
-Curves come from the Cache, cleaned and then re-aligned at the zero points stored in
-`analyses.blend`. The periodogram arrays are searched again on the cleaned curves before
-re-alignment, as the pipeline searched them (§4: "a plot redraws them from the Light
-Curves"), so the BLS search, the analyzer's slow step, is the one cost a replot shares with
-an analysis.
+Curves come from the Cache, cleaned, TESS binned (`analysis/bin.py`), and then re-aligned
+at the zero points stored in `analyses.blend`. The periodogram arrays are searched again on
+the cleaned curves before re-alignment, as the pipeline searched them (§4: "a plot redraws
+them from the Light Curves"), so the BLS search, the analyzer's slow step, is the one cost a
+replot shares with an analysis.
 """
 
 from pathlib import Path
@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from argelander import PIPELINE_VERSION
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.blend import realign
 from argelander.analysis.clean import clean
 from argelander.analysis.model import (
@@ -84,7 +85,7 @@ def replot(session: Session, row: AnalysisRow, cache_dir: Path, plots_dir: Path)
     files = session.scalars(
         select(LightCurveFile).where(LightCurveFile.id.in_(ids)).order_by(LightCurveFile.survey)
     ).all()
-    cleaned = [clean(lc) for lc in load_curves(cache_dir, target, files)]
+    cleaned = [bin_tess(clean(lc)) for lc in load_curves(cache_dir, target, files)]
 
     record = gaia_record(target)
     gaia_period = record.vari_period if record is not None else None

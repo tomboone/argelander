@@ -44,8 +44,10 @@ New `analysis/bin.py` with `bin_tess(lc: LightCurve) -> LightCurve`, and a const
 - Applied to TESS only (`lc.survey == "tess"`). ZTF, ASAS-SN and Gaia are a few hundred points a
   band and are left alone.
 - Bins are a fixed grid from the curve's first point: bin k holds the points with
-  `floor((time - time[0]) / TESS_BIN_WIDTH) == k`. Empty bins produce nothing, so gaps between
-  sectors stay gaps.
+  `floor((time - time[0]) / TESS_BIN_WIDTH + 0.5) == k`. Empty bins produce nothing, so gaps
+  between sectors stay gaps. (The `+ 0.5`, added in implementation, starts the grid half a
+  bin early, so a cadence of exactly 10 minutes puts each point mid-bin, not on an edge
+  where floating-point rounding would pair it with its neighbour.)
 - Each non-empty bin becomes one point: `time` the mean time of its points, `value` the mean,
   `error` the propagated error `sqrt(sum(error²)) / n`, `quality` 0. `sap` is binned by mean
   like `value`. `oid` stays None.

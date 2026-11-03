@@ -25,10 +25,12 @@ from typer.testing import CliRunner
 
 from argelander import PIPELINE_VERSION
 from argelander.analysis import worker
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.model import Analysis, Peak, PeriodogramResult, Variability
 from argelander.analysis.pipeline import analyze
 from argelander.analysis.worker import analysis_columns, run_once
 from argelander.catalog.gaia import GaiaRecord, records_from_tables
+from argelander.classify import replot
 from argelander.cli import app
 from argelander.config import get_settings
 from argelander.db import queue
@@ -474,7 +476,13 @@ def test_classify_replot_rewrites_the_plots_and_analyses_plots(
     submission = plots_dir / drawn["submission"]
     submission.unlink()
     (proposal,) = _proposals(sessions, target_id)
+    redrawn: list[LightCurve] = []
 
+    def binned(lc: LightCurve) -> LightCurve:
+        redrawn.append(bin_tess(lc))
+        return redrawn[-1]
+
+    monkeypatch.setattr(replot, "bin_tess", binned)
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("CACHE_DIR", str(cache_dir))
     monkeypatch.setenv("PLOTS_DIR", str(plots_dir))
@@ -491,6 +499,8 @@ def test_classify_replot_rewrites_the_plots_and_analyses_plots(
         (again,) = _rows(session, target_id)
     assert again.plots == drawn
     assert submission.stat().st_size > 0
+    # TESS is drawn binned, as the analysis searched it.
+    assert [lc.survey for lc in redrawn if "bin" in lc.meta] == ["tess"]
     # Nothing was classified again.
     (unchanged,) = _proposals(sessions, target_id)
     assert (unchanged.id, unchanged.created_at) == (proposal.id, proposal.created_at)

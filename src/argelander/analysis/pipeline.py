@@ -3,9 +3,9 @@
 Clean each band, bin TESS to 10 minutes (`analysis/bin.py`, NEU-2187), search each band
 with Lomb-Scargle and BLS, rank every candidate and its aliases, judge the blend checks,
 re-align each ZTF band's oids at the zero points the blend checks measured, let the sources
-vote on a period with contaminated surveys at half weight, place
-the Target on the colour-magnitude diagram, and measure the curve's shape at the agreed
-period and its variability for the classifier. Gaia's published period is the first
+vote on a period with contaminated surveys at half weight, place the Target on the
+colour-magnitude diagram, and measure the curve's shape at the agreed period and its
+variability for the classifier. Gaia's published period is the first
 hypothesis in every band and a source in Agreement.
 
 Re-alignment (NEU-1802) changes the curve after its period search, not before: the

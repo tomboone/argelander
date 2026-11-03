@@ -69,7 +69,7 @@ def test_a_continuous_viewing_zone_curve_finds_the_same_period_binned() -> None:
 
     assert raw.time.size > 250_000
     span = raw.time[-1] - raw.time[0]
-    assert binned.time.size <= int(span / TESS_BIN_WIDTH) + 1
+    assert binned.time.size <= int(span / TESS_BIN_WIDTH + 0.5) + 1
     assert binned.time.size == pytest.approx(raw.time.size / 5, rel=0.01)
 
     found = {}
