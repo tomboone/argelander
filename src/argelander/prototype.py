@@ -12,8 +12,8 @@ and the prototype notebook hold the pipeline to the same rule:
   one at all, it is at `true_period`, the period the published one is an alias of;
 - a blend or a constant star reaches no Agreement, or is flagged `blend_suspect`.
 
-A survey with no Light Curve for a star (ASAS-SN until NEU-1796) is a coverage gap: the star
-is judged on the sources it has.
+A survey with no Light Curve for a star is a coverage gap: the star is judged on the sources
+it has.
 """
 
 from collections.abc import Mapping

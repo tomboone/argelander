@@ -2,8 +2,8 @@
 
 Every manifest star goes through the pipeline the notebook runs, clean → periodograms →
 aliases → blend → Agreement → CMD, on its trimmed Light Curves and the Gaia catalog join
-recorded in `fixtures/catalog/`; `argelander.prototype.judge` applies the criterion. ASAS-SN
-is a coverage gap until NEU-1796, so Agreement rests on ZTF g, ZTF r, TESS and Gaia's period.
+recorded in `fixtures/catalog/`; `argelander.prototype.judge` applies the criterion. Agreement
+rests on every source: ZTF g, ZTF r, ASAS-SN, TESS and Gaia's period (NEU-1796).
 
 The classifier's rules (NEU-1720) are held to the same set: at least `MIN_CLASSIFIED` of the 20
 positives get their published type as the best-scoring type, and a blend or constant star
@@ -225,12 +225,23 @@ def test_proposal_epoch_is_at_primary_minimum(star: dict, analyses: dict) -> Non
 
 
 @pytest.mark.gate
-def test_missing_asassn_is_a_coverage_gap(analyses: dict) -> None:
-    """No star has ASAS-SN Light Curves yet; each is analysed on the sources it has."""
+def test_every_star_is_analysed_in_asassn(analyses: dict) -> None:
+    """Every manifest star has ASAS-SN V and g fixtures, and both go through the alias tests."""
     for star in STARS:
         analysis, _ = analyses[star["star"]]
-        assert analysis.alias_tests, star["star"]
-        assert all(t.survey != "asassn" for t in analysis.alias_tests)
+        bands = {t.band for t in analysis.alias_tests if t.survey == "asassn"}
+        assert bands == set(star["coverage"]["asassn"]) == {"V", "g"}, star["star"]
+
+
+@pytest.mark.gate
+@pytest.mark.parametrize(
+    "star", [s for s in STARS if s.get("negative_kind") == "blend"], ids=lambda s: s["star"]
+)
+def test_blend_is_asassn_contaminated(star: dict, analyses: dict) -> None:
+    """The eclipsing neighbour within 1.5" sits inside ASAS-SN's 17" aperture too."""
+    analysis, _ = analyses[star["star"]]
+    assert analysis.blend is not None
+    assert "asassn_contaminated" in analysis.blend.flags
 
 
 @pytest.mark.gate
