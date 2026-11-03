@@ -6,7 +6,11 @@ The four surveys report:
 - ZTF: MJD in UTC, observed from Palomar (topocentric).
 - TESS: BTJD = BJD_TDB − 2457000, already barycentric.
 - Gaia DR3 epoch photometry: barycentric JD in TCB − 2455197.5.
-- ASAS-SN: HJD in UTC (heliocentric, geocentric observer).
+- ASAS-SN Sky Patrol v2: JD in UTC with no light-travel correction, though older ASAS-SN
+  products publish HJD. Checked on 2026-11-02 (NEU-1764) against the HJDs the ASAS-SN
+  Variable Stars Database gives for the same images: the difference follows the
+  heliocentric correction (±100 s for a Target in Draco) and is within 11 s once it is
+  applied (`fetch/asassn.py` has the numbers).
 
 `bjd_tdb_to_hjd` goes the other way, for VSX's revision form, which takes the epoch in HJD.
 
@@ -29,8 +33,8 @@ GAIA_TIME_ZERO = 2455197.5
 _PALOMAR = EarthLocation.from_geodetic(
     lon=-116.8639 * u.deg, lat=33.3574 * u.deg, height=1700 * u.m
 )
-# ASAS-SN observes from several sites and publishes geocentric HJDs, so undo and redo the
-# correction from the geocentre.
+# ASAS-SN observes from several sites and does not say which one took an image, so its
+# corrections are made from the geocentre: an Earth radius is at most 21 ms of light travel.
 _GEOCENTRE = EarthLocation.from_geocentric(0.0, 0.0, 0.0, unit=u.m)
 _EPHEMERIS = "builtin"
 
@@ -56,29 +60,19 @@ def gaia_tcb_to_bjd_tdb(t: npt.ArrayLike) -> np.ndarray:
     return np.asarray(tcb.tdb.jd, dtype=np.float64)
 
 
-def asassn_hjd_to_bjd_tdb(hjd: npt.ArrayLike, ra: float, dec: float) -> np.ndarray:
-    """ASAS-SN HJD (UTC) → BJD_TDB for a Target at ICRS `ra`, `dec` in degrees.
-
-    Removes the heliocentric correction to recover the UTC JD, then applies the barycentric
-    one. HJD = JD + Δ(JD), and Δ changes by under 0.1 s across its own ~8 minute size, so two
-    fixed-point steps recover the JD to well under a millisecond.
-    """
-    target = _icrs(ra, dec)
-    hjd = np.asarray(hjd, dtype=np.float64)
-    jd = hjd
-    for _ in range(2):
-        t = Time(jd, format="jd", scale="utc", location=_GEOCENTRE)
-        delta = t.light_travel_time(target, kind="heliocentric", ephemeris=_EPHEMERIS)
-        jd = hjd - delta.to_value(u.day)
-    return _utc_to_bjd_tdb(Time(jd, format="jd", scale="utc", location=_GEOCENTRE), target)
+def asassn_jd_to_bjd_tdb(jd: npt.ArrayLike, ra: float, dec: float) -> np.ndarray:
+    """ASAS-SN Sky Patrol JD (UTC) → BJD_TDB for a Target at ICRS `ra`, `dec` in degrees."""
+    t = Time(np.asarray(jd, dtype=np.float64), format="jd", scale="utc", location=_GEOCENTRE)
+    return _utc_to_bjd_tdb(t, _icrs(ra, dec))
 
 
 def bjd_tdb_to_hjd(bjd: npt.ArrayLike, ra: float, dec: float) -> np.ndarray:
     """BJD_TDB → HJD (UTC) for a Target at ICRS `ra`, `dec` in degrees: VSX's epoch.
 
-    The inverse of `asassn_hjd_to_bjd_tdb`: removes the barycentric correction to recover the
-    TDB instant at the geocentre, converts it to UTC, then applies the heliocentric correction.
-    As there, two fixed-point steps recover the instant to well under a millisecond.
+    Removes the barycentric correction to recover the TDB instant at the geocentre, converts
+    it to UTC, then applies the heliocentric correction. The correction depends on the instant
+    it is removed from, but changes by under 0.1 s across its own ~8 minute size, so two
+    fixed-point steps recover the instant to well under a millisecond.
     """
     target = _icrs(ra, dec)
     bjd = np.asarray(bjd, dtype=np.float64)

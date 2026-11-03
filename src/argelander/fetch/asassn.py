@@ -29,9 +29,16 @@ reported as an upper limit at the image's limiting magnitude with `mag_err` 99.9
 one test drops both. The band comes from the camera, by the client's own camera lists; a
 camera on neither list is dropped, as the client drops it.
 
-Times are HJD in UTC from a geocentric observer (the Sky Patrol `jd` column) and become
-BJD_TDB here. Magnitudes are V from the V cameras and g from the g cameras, both calibrated
-against APASS.
+Times are JDs in UTC with no light-travel correction (the Sky Patrol `jd` column) and
+become BJD_TDB here. They are not the HJDs older ASAS-SN products publish: on 2026-11-02
+(NEU-1764) the `jd` of 257 V images of CSS_J173907.6+550053 differed from the HJD the
+ASAS-SN Variable Stars Database gives for the same images by the heliocentric correction,
+−85 to +104 s, and agreed with it to within 11 s once that correction was applied; read as
+HJDs they were up to 114 s off. What is left is not noise: it is −0.5 s − 8 % of the
+correction, with 2.6 s of scatter, so one of the two pipelines scales its correction
+slightly differently, for a reason neither documents. Either way the time is a JD.
+
+Magnitudes are V from the V cameras and g from the g cameras, both calibrated against APASS.
 """
 
 import io
@@ -48,7 +55,7 @@ import pyarrow.parquet as pq
 import requests
 from astropy.coordinates import SkyCoord
 
-from argelander.analysis.time import asassn_hjd_to_bjd_tdb
+from argelander.analysis.time import asassn_jd_to_bjd_tdb
 from argelander.fetch.base import ArchiveLimits, TargetRef, with_retries
 from argelander.lightcurve import LightCurve
 
@@ -186,7 +193,7 @@ def light_curves_from_sky_patrol(
         selected = good & np.isin(camera, sorted(cameras))
         if not selected.any():
             continue
-        time = asassn_hjd_to_bjd_tdb(jd[selected], ra, dec)
+        time = asassn_jd_to_bjd_tdb(jd[selected], ra, dec)
         order = np.argsort(time, kind="stable")
         curves.append(
             LightCurve(
@@ -203,7 +210,7 @@ def light_curves_from_sky_patrol(
                     "separation_arcsec": float(separations[nearest]),
                     "catalog_sources": catalog_sources,
                     "cameras": sorted(set(camera[selected].tolist())),
-                    "time_system": "HJD UTC, geocentric",
+                    "time_system": "JD UTC",
                     "fetched_at": fetched_at,
                 },
             )

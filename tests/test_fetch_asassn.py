@@ -1,18 +1,28 @@
 """The ASAS-SN fetcher: target choice, V/g split, cleaning and BJD_TDB (spec §5.1).
 
-The offline tests replay a Sky Patrol response built here in the schema the service
-documents (`pyasassn` docs, "Individual Light Curves") and returns: a cone index of
-`asas_sn_id`, `ra_deg`, `dec_deg`, `catalog_sources`, and per-epoch rows of `asas_sn_id`,
-`jd`, `flux`, `flux_err`, `mag`, `mag_err`, `limit`, `fwhm`, `image_id`, `camera`,
-`quality`. They are constructed, not recorded: the light-curve service was down for
-maintenance when this fetcher was written (2026-10-19), though the cone search answered and
-resolved CSS_J173907.6+550053 to `asas_sn_id` 223338434361, whose position the index uses.
-A recorded response replaces this one in NEU-1764.
+The offline tests replay a recorded Sky Patrol response for CSS_J173907.6+550053, an RRAB in
+Draco at G 14.7 that Sky Patrol knows as `asas_sn_id` 223338434361 and saw with V cameras
+ba and bc and g cameras bC and bs. It was fetched on 2026-11-02 with the fetcher's own
+`query_sky_patrol` and trimmed to stay small: the target index is whole, and the 1,069
+light-curve rows are cut to every 8th row, plus the one non-detection (`mag_err` 99.99),
+the one image graded "U", and the six images in `css_j173907_variables_hjd.csv`. The kept
+rows, columns and dtypes are original, including the pandas index column Sky Patrol adds.
+
+`css_j173907_variables_hjd.csv` holds the HJDs the ASAS-SN Variable Stars Database
+(asas-sn.osu.edu/variables, an older pipeline) publishes for six of those images, the three
+at each extreme of the heliocentric correction. It pins down the time system: Sky Patrol's
+`jd` is a UTC JD with no light-travel correction, not an HJD.
+
+What a real Target does not show (a camera on neither list, a second target in the cone) is
+added to the recording by copying recorded rows. Expected values come from the Parquet rows
+with plain Python, not from the code under test.
 """
 
 import asyncio
+import csv
 import io
 from base64 import decodebytes
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,7 +32,7 @@ import pyarrow.parquet as pq
 import pytest
 import requests
 
-from argelander.analysis.time import asassn_hjd_to_bjd_tdb
+from argelander.analysis.time import asassn_jd_to_bjd_tdb, bjd_tdb_to_hjd
 from argelander.fetch import asassn
 from argelander.fetch.asassn import (
     AsassnFetcher,
@@ -34,6 +44,7 @@ from argelander.fetch.asassn import (
 from argelander.fetch.base import ArchiveLimits, Fetcher, TargetRef, is_transient
 from argelander.lightcurve import LightCurve
 
+FIXTURES = Path(__file__).parent / "fixtures" / "asassn"
 TARGET = TargetRef(
     gaia_source_id=1418010841782026880,
     ra=264.78197,
@@ -43,23 +54,28 @@ TARGET = TargetRef(
 TARGET_ID = 223338434361
 # A second target 2.5″ north, inside the 3″ cone.
 NEIGHBOUR_ID = 223338434999
+V_CAMERAS = {"ba", "bc"}
+G_CAMERAS = {"bC", "bs"}
 
-# (asas_sn_id, jd, mag, mag_err, camera, quality); unsorted, as Sky Patrol returns them.
-ROWS = [
-    (TARGET_ID, 2457100.80, 14.62, 0.031, "bd", "G"),  # V
-    (TARGET_ID, 2456800.10, 14.95, 0.040, "ba", "G"),  # V
-    (TARGET_ID, 2456900.40, 14.71, 0.035, "bd", "B"),  # V, bad image
-    (TARGET_ID, 2457000.60, 17.10, 99.99, "ba", "G"),  # V, non-detection at the limit
-    (TARGET_ID, 2459200.30, 15.12, 0.052, "bG", "G"),  # g
-    (TARGET_ID, 2458500.70, 14.88, 0.044, "bi", "G"),  # g
-    (TARGET_ID, 2459000.20, 15.30, 0.061, "cB", "G"),  # g
-    (TARGET_ID, 2458700.90, 17.40, 99.99, "bG", "G"),  # g, non-detection
-    (TARGET_ID, 2458800.50, 15.01, 0.050, "bo", "B"),  # g, bad image
-    (TARGET_ID, 2458600.50, 15.05, 0.050, "zz", "G"),  # unknown camera
-    (NEIGHBOUR_ID, 2458550.50, 16.20, 0.090, "bi", "G"),  # g, the other target
-]
-GOOD_V = [(2456800.10, 14.95, 0.040), (2457100.80, 14.62, 0.031)]
-GOOD_G = [(2458500.70, 14.88, 0.044), (2459000.20, 15.30, 0.061), (2459200.30, 15.12, 0.052)]
+RECORDED_LIGHT_CURVES = (FIXTURES / "css_j173907_light_curves.parquet").read_bytes()
+RECORDED = SkyPatrolResponse(
+    index=(FIXTURES / "css_j173907_index.parquet").read_bytes(),
+    light_curves=RECORDED_LIGHT_CURVES,
+)
+LIGHT_CURVE_TABLE = pq.read_table(io.BytesIO(RECORDED_LIGHT_CURVES))
+ROWS: list[dict[str, Any]] = LIGHT_CURVE_TABLE.to_pylist()
+
+
+def good_rows(cameras: set[str]) -> list[dict[str, Any]]:
+    """The recorded rows Sky Patrol graded good that are detections, in time order."""
+    return sorted(
+        (
+            row
+            for row in ROWS
+            if row["camera"] in cameras and row["quality"] == "G" and row["mag_err"] < 99
+        ),
+        key=lambda row: row["jd"],
+    )
 
 
 def parquet(table: pa.Table) -> bytes:
@@ -82,33 +98,18 @@ def index_bytes(*targets: tuple[int, float, float, list[str]]) -> bytes:
     )
 
 
-def light_curve_bytes(rows: list[tuple[Any, ...]]) -> bytes:
-    ids, jd, mag, mag_err, camera, quality = zip(*rows, strict=True)
-    n = len(rows)
-    return parquet(
-        pa.table(
-            {
-                "asas_sn_id": pa.array(ids, pa.int64()),
-                "jd": pa.array(jd, pa.float64()),
-                "flux": pa.array([1.0] * n, pa.float64()),
-                "flux_err": pa.array([0.05] * n, pa.float64()),
-                "mag": pa.array(mag, pa.float64()),
-                "mag_err": pa.array(mag_err, pa.float64()),
-                "limit": pa.array([17.5] * n, pa.float64()),
-                "fwhm": pa.array([1.5] * n, pa.float64()),
-                "image_id": pa.array([f"{c}{i:06d}" for i, c in enumerate(camera)]),
-                "camera": pa.array(camera, pa.string()),
-                "quality": pa.array(quality, pa.string()),
-            }
-        )
+def with_copied_rows(count: int, **changes: Any) -> bytes:
+    """The recorded light curves plus copies of the first `count` good rows with `changes`."""
+    copies = pa.Table.from_pylist(
+        [{**row, **changes} for row in good_rows(V_CAMERAS | G_CAMERAS)[:count]],
+        schema=LIGHT_CURVE_TABLE.schema,
     )
+    return parquet(pa.concat_tables([LIGHT_CURVE_TABLE, copies]))
 
 
 TARGET_ENTRY = (TARGET_ID, 264.78197118, 55.014594, ["stellar_main", "tic", "aavsovsx"])
 NEIGHBOUR_ENTRY = (NEIGHBOUR_ID, 264.78197, 55.01459 + 2.5 / 3600, ["stellar_main"])
-RECORDED = SkyPatrolResponse(
-    index=index_bytes(NEIGHBOUR_ENTRY, TARGET_ENTRY), light_curves=light_curve_bytes(ROWS)
-)
+WITH_NEIGHBOUR = with_copied_rows(5, asas_sn_id=NEIGHBOUR_ID)
 
 
 def fetch_recorded(response: SkyPatrolResponse = RECORDED) -> dict[str, LightCurve]:
@@ -135,52 +136,85 @@ def test_the_target_nearest_the_position_gives_one_v_and_one_g_light_curve() -> 
         assert lc.meta["asas_sn_id"] == TARGET_ID
         assert lc.meta["catalog_sources"] == ["stellar_main", "tic", "aavsovsx"]
         assert lc.meta["separation_arcsec"] < 0.1
+        assert lc.meta["time_system"] == "JD UTC"
         assert np.all(lc.quality == 0)
-    assert curves["V"].meta["cameras"] == ["ba", "bd"]
-    assert curves["g"].meta["cameras"] == ["bG", "bi", "cB"]
+    assert curves["V"].meta["cameras"] == sorted(V_CAMERAS)
+    assert curves["g"].meta["cameras"] == sorted(G_CAMERAS)
 
 
-@pytest.mark.parametrize(("band", "good"), [("V", GOOD_V), ("g", GOOD_G)])
+@pytest.mark.parametrize(("band", "cameras"), [("V", V_CAMERAS), ("g", G_CAMERAS)])
 def test_only_good_detections_survive_in_bjd_tdb_and_time_order(
-    band: str, good: list[tuple[float, float, float]]
+    band: str, cameras: set[str]
 ) -> None:
     lc = fetch_recorded()[band]
-    hjd, mag, mag_err = (np.array(column) for column in zip(*good, strict=True))
+    good = good_rows(cameras)
+    jd = np.array([row["jd"] for row in good])
 
     np.testing.assert_allclose(
-        lc.time, asassn_hjd_to_bjd_tdb(hjd, TARGET.ra, TARGET.dec), rtol=0, atol=1e-9
+        lc.time, asassn_jd_to_bjd_tdb(jd, TARGET.ra, TARGET.dec), rtol=0, atol=1e-9
     )
-    # HJD → BJD_TDB is TDB−UTC (~67–69 s here) plus a heliocentric-to-barycentric shift of
-    # seconds at most.
-    assert np.all(np.abs(lc.time - hjd) < 90.0 / 86400.0)
-    np.testing.assert_array_equal(lc.value, mag)
-    np.testing.assert_array_equal(lc.error, mag_err)
-    assert lc.meta["time_system"] == "HJD UTC, geocentric"
+    # JD (UTC) → BJD_TDB is TDB−UTC (67–69 s here) plus a barycentric correction of under
+    # two minutes this close to the ecliptic pole.
+    assert np.all(np.abs(lc.time - jd) < 200.0 / 86400.0)
+    np.testing.assert_array_equal(lc.value, [row["mag"] for row in good])
+    np.testing.assert_array_equal(lc.error, [row["mag_err"] for row in good])
 
 
-def test_bad_images_non_detections_unknown_cameras_and_other_targets_are_dropped() -> None:
+def test_sky_patrol_times_agree_with_the_hjds_asas_sn_published_for_the_same_images() -> None:
+    lc = fetch_recorded()["V"]
+    with (FIXTURES / "css_j173907_variables_hjd.csv").open() as f:
+        published = [(float(row["hjd"]), float(row["mag"])) for row in csv.DictReader(f)]
+
+    for hjd, mag in published:
+        image = int(np.argmin(np.abs(lc.time - hjd)))
+        jd = good_rows(V_CAMERAS)[image]["jd"]
+        # The same image: the two pipelines' magnitudes differ by about 0.07.
+        assert abs(lc.value[image] - mag) < 0.2
+        # Read as an HJD, Sky Patrol's time would be 84–114 s off for these images.
+        assert abs(jd - hjd) * 86400.0 > 60.0
+        # Read as a JD, the HJD it gives matches the published one within 10 s: what is
+        # left is about 8 % of the heliocentric correction, a scale one of the two pipelines
+        # applies and the other does not (fetch/asassn.py).
+        converted = bjd_tdb_to_hjd(lc.time[image], TARGET.ra, TARGET.dec)
+        assert abs(float(converted) - hjd) * 86400.0 < 15.0
+
+
+def test_bad_images_and_non_detections_are_dropped() -> None:
     curves = fetch_recorded()
 
-    assert sum(len(lc.time) for lc in curves.values()) == len(GOOD_V) + len(GOOD_G)
+    assert {row["quality"] for row in ROWS} == {"G", "B", "U"}
+    assert any(row["mag_err"] >= 99 for row in ROWS)
+    assert sum(len(lc.time) for lc in curves.values()) == len(good_rows(V_CAMERAS | G_CAMERAS))
     assert all(np.all(lc.error < 99) for lc in curves.values())
-    assert 16.20 not in curves["g"].value  # the neighbour's point
 
 
-def test_the_nearer_of_two_targets_is_kept_whichever_order_they_arrive_in() -> None:
+def test_a_camera_on_neither_list_is_dropped() -> None:
     response = SkyPatrolResponse(
-        index=index_bytes(TARGET_ENTRY, NEIGHBOUR_ENTRY), light_curves=RECORDED.light_curves
+        index=RECORDED.index, light_curves=with_copied_rows(3, camera="zz")
     )
 
     curves = fetch_recorded(response)
 
+    assert sum(len(lc.time) for lc in curves.values()) == len(good_rows(V_CAMERAS | G_CAMERAS))
+
+
+@pytest.mark.parametrize(
+    "entries", [(NEIGHBOUR_ENTRY, TARGET_ENTRY), (TARGET_ENTRY, NEIGHBOUR_ENTRY)]
+)
+def test_the_nearer_of_two_targets_is_kept_whichever_order_they_arrive_in(
+    entries: tuple[tuple[int, float, float, list[str]], ...],
+) -> None:
+    response = SkyPatrolResponse(index=index_bytes(*entries), light_curves=WITH_NEIGHBOUR)
+
+    curves = fetch_recorded(response)
+
     assert {lc.source_key for lc in curves.values()} == {str(TARGET_ID)}
+    assert sum(len(lc.time) for lc in curves.values()) == len(good_rows(V_CAMERAS | G_CAMERAS))
 
 
 def test_a_band_with_no_good_points_is_left_out() -> None:
-    v_only = [row for row in ROWS if row[4] in ("ba", "bd")]
-    response = SkyPatrolResponse(
-        index=index_bytes(TARGET_ENTRY), light_curves=light_curve_bytes(v_only)
-    )
+    v_only = LIGHT_CURVE_TABLE.filter(pa.array([row["camera"] in V_CAMERAS for row in ROWS]))
+    response = SkyPatrolResponse(index=RECORDED.index, light_curves=parquet(v_only))
 
     assert list(fetch_recorded(response)) == ["V"]
 
@@ -193,11 +227,9 @@ def test_an_empty_cone_means_no_asassn_data() -> None:
     "response",
     [
         SkyPatrolResponse(index=b"<!DOCTYPE HTML><title>404 Not Found</title>", light_curves=None),
-        SkyPatrolResponse(index=index_bytes(TARGET_ENTRY), light_curves=b"<html></html>"),
-        SkyPatrolResponse(
-            index=index_bytes(TARGET_ENTRY), light_curves=parquet(pa.table({"jd": [1.0]}))
-        ),
-        SkyPatrolResponse(index=index_bytes(TARGET_ENTRY), light_curves=None),
+        SkyPatrolResponse(index=RECORDED.index, light_curves=b"<html></html>"),
+        SkyPatrolResponse(index=RECORDED.index, light_curves=parquet(pa.table({"jd": [1.0]}))),
+        SkyPatrolResponse(index=RECORDED.index, light_curves=None),
     ],
     ids=["html-index", "html-light-curves", "missing-columns", "no-light-curves"],
 )
@@ -205,7 +237,7 @@ def test_a_response_that_is_not_sky_patrol_parquet_is_an_error(
     response: SkyPatrolResponse,
 ) -> None:
     with pytest.raises(ValueError, match="Sky Patrol"):
-        light_curves_from_sky_patrol(response, TARGET.ra, TARGET.dec, fetched_at="2026-10-19")
+        light_curves_from_sky_patrol(response, TARGET.ra, TARGET.dec, fetched_at="2026-11-02")
 
 
 class FakeSkyPatrol:
@@ -265,7 +297,7 @@ def install(monkeypatch: pytest.MonkeyPatch, fake: FakeSkyPatrol) -> None:
 def test_query_searches_three_arcsec_and_fetches_the_block_the_client_would(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = FakeSkyPatrol(index_bytes(TARGET_ENTRY), servers=["asassn-db01.example"])
+    fake = FakeSkyPatrol(RECORDED.index, servers=["asassn-db01.example"])
     install(monkeypatch, fake)
 
     response = query_sky_patrol(264.78197, 55.01459)
@@ -301,9 +333,7 @@ def test_query_searches_three_arcsec_and_fetches_the_block_the_client_would(
 def test_query_moves_to_the_next_server_when_one_fails(
     monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
-    fake = FakeSkyPatrol(
-        index_bytes(TARGET_ENTRY), servers=["db01", "db02"], failing={"db01": failure}
-    )
+    fake = FakeSkyPatrol(RECORDED.index, servers=["db01", "db02"], failing={"db01": failure})
     install(monkeypatch, fake)
 
     assert query_sky_patrol(TARGET.ra, TARGET.dec).light_curves == RECORDED.light_curves
@@ -312,7 +342,7 @@ def test_query_moves_to_the_next_server_when_one_fails(
 
 def test_the_last_servers_failure_is_raised(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = FakeSkyPatrol(
-        index_bytes(TARGET_ENTRY),
+        RECORDED.index,
         servers=["db01", "db02"],
         failing={"db01": "html", "db02": "html"},
     )
@@ -333,7 +363,7 @@ def test_query_skips_the_light_curve_servers_for_an_empty_cone(
 
 
 def test_no_light_curve_servers_is_a_transient_outage(monkeypatch: pytest.MonkeyPatch) -> None:
-    install(monkeypatch, FakeSkyPatrol(index_bytes(TARGET_ENTRY), servers=[]))
+    install(monkeypatch, FakeSkyPatrol(RECORDED.index, servers=[]))
 
     with pytest.raises(SkyPatrolUnavailable) as raised:
         query_sky_patrol(TARGET.ra, TARGET.dec)
