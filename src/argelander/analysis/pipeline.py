@@ -1,8 +1,9 @@
 """One Target's Analysis from its Light Curves and its Gaia record: spec §6 steps 3–8 in order.
 
-Clean each band, search it with Lomb-Scargle and BLS, rank every candidate and its aliases,
-judge the blend checks, re-align each ZTF band's oids at the zero points the blend checks
-measured, let the sources vote on a period with contaminated surveys at half weight, place
+Clean each band, bin TESS to 10 minutes (`analysis/bin.py`, NEU-2187), search each band
+with Lomb-Scargle and BLS, rank every candidate and its aliases, judge the blend checks,
+re-align each ZTF band's oids at the zero points the blend checks measured, let the sources
+vote on a period with contaminated surveys at half weight, place
 the Target on the colour-magnitude diagram, and measure the curve's shape at the agreed
 period and its variability for the classifier. Gaia's published period is the first
 hypothesis in every band and a source in Agreement.
@@ -20,6 +21,7 @@ from collections.abc import Iterable
 from argelander import PIPELINE_VERSION
 from argelander.analysis.agreement import agreement
 from argelander.analysis.aliases import alias_test, candidates, refold
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.blend import blend, realign
 from argelander.analysis.clean import clean
 from argelander.analysis.cmd import cmd_position
@@ -39,10 +41,12 @@ def analyze(
 ) -> tuple[Analysis, list[LightCurve]]:
     """The Target's Analysis, and its cleaned Light Curves, which the plots draw.
 
-    Without a Gaia `record` there is no Gaia period, blend check or CMD position.
+    TESS's cleaned curve is the binned one every step after cleaning reads. Without a Gaia
+    `record` there is no Gaia period, blend check or CMD position.
     """
     gaia_period = record.vari_period if record is not None else None
-    cleaned = [clean(lc) for lc in curves]
+    # Binned after cleaning, whose running-median clip needs TESS's native cadence.
+    cleaned = [bin_tess(clean(lc)) for lc in curves]
     analysis = Analysis(target_id=target_id, pipeline_version=pipeline_version)
     for lc in cleaned:
         results = (lomb_scargle(lc, gaia_period), box_least_squares(lc, gaia_period))
