@@ -26,7 +26,9 @@ puts the same aliases into both.
 
 A survey the blend checks found contaminated (spec §6 step 7) counts as half a source:
 its period may be a neighbour's, so the sources at a period must weigh as much as two clean
-ones: a contaminated source and one clean source are not enough.
+ones: a contaminated source and one clean source are not enough. At least one of them must be
+clean, too: four contaminated sources weigh two, but every one of them may be seeing the same
+neighbour, and on the fixture blends all four agree on the neighbour's period (NEU-1796).
 
 When two periods are found by equally many sources the sources disagree, and nothing is
 accepted. The rule of the bulk imports, taking the single highest periodogram peak, is how
@@ -96,7 +98,8 @@ def agreement(
     gaia_period: float | None = None,
     contaminated: Collection[str] = (),
 ) -> Agreement | None:
-    """The period most sources agree on, if at least two do and no other period ties it.
+    """The period most sources agree on, if at least two do, one of them clean, and no other
+    period ties it.
 
     `contaminated` names the surveys whose sources count at half weight (`Blend.surveys`).
     """
@@ -121,7 +124,7 @@ def agreement(
         elif {v.source for v in at_short} <= {v.source for v in at_long}:
             at_short = []
         names = {v.source for v in at_short + at_long}
-        if weight(names) < MIN_WEIGHT:
+        if weight(names) < MIN_WEIGHT or all(SURVEYS[n] in contaminated for n in names):
             continue
         if at_short and at_long:
             periods = [2 * v.period for v in at_short] + [v.period for v in at_long]

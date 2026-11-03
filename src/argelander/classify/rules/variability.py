@@ -2,7 +2,8 @@
 
 What separates a constant star from a slow irregular variable, when neither has a period,
 is whether its magnitudes spread further than their errors explain. Only surveys the blend
-checks found clean are measured: a contaminated survey's spread could be a neighbour's.
+checks found clean are measured: a contaminated survey's spread could be a neighbour's. ASAS-SN
+is not measured either, since its reported errors understate its scatter (`shape.variability`).
 """
 
 from argelander.analysis.model import Analysis
@@ -31,7 +32,8 @@ class VariabilityRule:
                 type_code,
                 "neutral",
                 HARD_WEIGHT if type_code == "L" else 0.0,
-                "Every survey is contaminated, so the Target's own variability cannot be measured.",
+                "No survey is both clean and has errors to measure against (ASAS-SN's understate "
+                "its scatter), so the Target's own variability cannot be measured.",
             )
         stated = (
             f"The {measured.survey.upper()} {measured.band} magnitudes spread "

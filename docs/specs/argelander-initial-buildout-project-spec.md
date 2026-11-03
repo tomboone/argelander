@@ -538,6 +538,17 @@ Order of operations in `analysis/worker.py` for one Target:
    sources). ZTF r was measured (largest offset 0.037 mag); ZTF g's only non-reference oid
    holds 8 points in the trimmed fixture and is unmeasured, so g counts in full without
    having been judged. It is out of `KNOWN_FAILURES`; the gate passes all 27 stars.
+
+   *Amended 2026-11-02 (NEU-1796):* an Agreement needs at least one clean source among the
+   sources at its period. Four contaminated sources weigh 2.0, as two clean ones do, and
+   with ASAS-SN in the fixtures both blends reached Agreement that way: ZTF g, ZTF r,
+   ASAS-SN and TESS, every one flagged, all at the eclipsing neighbour's period. Every one of
+   them may be seeing the same neighbour, so the period cannot be credited to the Target,
+   the reasoning `variability` already applies when every survey is contaminated. On the
+   fixtures the rule changes only the two blends: every positive and both alias traps have
+   a clean ZTF band among their agreeing sources. Rejected: keeping the Agreement and having the classifier discount it. The
+   Analysis would still carry a period nothing attributes to the Target, and every reader
+   of `analysis.agreement` would need to repeat the check.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
@@ -630,6 +641,16 @@ Order of operations in `analysis/worker.py` for one Target:
    ratio come from this fold, not from BLS as NEU-1720 first said: BLS fits a single box, so
    it has no secondary depth, and a box's duration means little on an EW star's continuous
    curve.
+
+   *Amended 2026-11-02 (NEU-1796):* `variability` does not measure ASAS-SN. Its reported
+   errors understate its scatter: on the three constant stars in the fixtures the robust
+   scatter (1.4826 × MAD) is 1.8–3.2 times the median `mag_err` in V and g, against 0.95–1.3
+   times for ZTF. Measured against them, the two constants at G 13.7 and 14.0 spread 2.8–3.6
+   times their errors and both scored `L`. ZTF covers the same baseline and depth, so the Target
+   is still measured wherever it has a clean ZTF band. Rejected: a noise floor or a scale
+   factor on ASAS-SN's errors. The understatement falls from 3.2 to 1.8 times between G 14
+   and 15, so a floor fitted to the bright constants leaves the faint one unchanged, and a
+   factor fitted to three stars would be in-sample.
 9. Write the `analyses` row; hand off to `classify.propose` and `plots`.
 
    *Amended 2026-10-21 (NEU-1718):* `argelander analyze-worker` takes one analyze Job a
@@ -717,6 +738,12 @@ which RS fits as well, and are strict xfails in `tests/test_prototype.py`. Blend
 constants score CST. The alias traps reach Agreement at their true periods and are classified
 there as their VSX type, so they are not held to the "no type above 0.5" rule meant for stars
 with no period.
+
+*Amended 2026-11-02 (NEU-1796):* with ASAS-SN in the fixtures, the same result needs the two
+changes in §6: blends again reach no Agreement, because every source that agreed was
+contaminated (step 6), and constants are measured without ASAS-SN's understated errors
+(step 8). Without them the two blends scored DSCT and EW at Confidence 1.0, and the
+constants at G 13.7 and 14.0 scored `L`, at 1.0 and 0.2.
 
 **Magnitude range** (VSX FAQ): `mag_max` and `mag_min` are the mean magnitudes at
 maximum and minimum read from the binned phase curve of the chosen band after outlier
@@ -1112,6 +1139,15 @@ from the grilling session:
   the pipeline is known to fail is a strict xfail with its reason, so it shows in the run
   and the entry has to go when it starts passing. The stars run in parallel because BLS over
   ZTF's baseline is the slow step (a few seconds a band since NEU-1839).
+
+  *Amended 2026-11-02 (NEU-1796):* the fixtures now carry ASAS-SN V and g for all 27 stars
+  (≤ 500 points a band, 0.76 MB of the 2.87 MB in `tests/fixtures/`), and no manifest entry is
+  `pending`. The gate still passes all 27. ASAS-SN votes in the Agreement of 19 of the 20
+  positives (not ASASSN-V J183551.48+614330.1, which agrees from ZTF g and r), and in both
+  alias traps' Agreements at their true periods. `asassn_contaminated` fires on both blends
+  and on one positive, 1SWASP J191601.56+560055.3, whose Agreement keeps three clean
+  sources (ZTF g, ZTF r and Gaia's period). No positive's Agreement moved off its published
+  period.
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
@@ -1290,6 +1326,43 @@ Per star, in kB (total = new TESS + ZTF and Gaia from the table above):
 | Gaia DR3 1435854639894380800 | 13.66 | 16,285 | 7,928 | 8,027 | QLP |
 | Gaia DR3 1434111643382583936 | 13.96 | 15,931 | 7,716 | 7,828 | QLP |
 | Gaia DR3 1435683567052954368 | 15.01 | 18,212 | 8,781 | 8,790 | TESScut |
+
+*Re-measured 2026-11-02 (NEU-1796)*, adding ASAS-SN with
+`python scripts/build_fixtures.py --measure --survey asassn`; the other surveys are carried
+over from the tables above. ASAS-SN takes 21–80 kB a star (median 32 kB, mean 42 kB), V and
+g together, 0.6 % of a star. The per-star figures barely move: median 7.9 MB, mean 6.8 MB,
+largest 9.0 MB. The storage projections above barely move: 34–136 GB for the first year
+(34–135 GB at 6.7 MB a star) and about 1.1 TB for the whole backlog.
+
+| Star | G | asassn kB | Total kB |
+| --- | ---: | ---: | ---: |
+| NSVS 2887379 | 13.91 | 33 | 7,535 |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 31 | 8,804 |
+| LINEAR 20427289 | 15.34 | 29 | 6,436 |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 76 | 4,903 |
+| DW Dra | 13.04 | 63 | 8,515 |
+| T-Dra0-09947 | 15.08 | 32 | 5,226 |
+| 1SWASP J191601.56+560055.3 | 13.60 | 80 | 6,461 |
+| CSS_J173907.6+550053 | 14.69 | 30 | 8,512 |
+| V0364 Dra | 14.85 | 29 | 4,506 |
+| V0502 Dra | 14.92 | 31 | 8,124 |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 31 | 8,786 |
+| V0379 Dra | 13.33 | 61 | 7,367 |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 25 | 8,450 |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 33 | 8,348 |
+| V0553 Dra | 13.78 | 52 | 8,646 |
+| KO Cep | 13.06 | 21 | 2,473 |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 63 | 7,284 |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 24 | 8,407 |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 27 | 8,700 |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 63 | 8,952 |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 30 | 3,026 |
+| CSS_J181701.4+514940 | 14.41 | 40 | 5,243 |
+| CSS_J160212.7+530724 | 15.70 | 29 | 1,080 |
+| CSS_J172350.6+504650 | 14.48 | 28 | 2,401 |
+| Gaia DR3 1435854639894380800 | 13.66 | 33 | 8,060 |
+| Gaia DR3 1434111643382583936 | 13.96 | 58 | 7,886 |
+| Gaia DR3 1435683567052954368 | 15.01 | 74 | 8,864 |
 
 - Whether ASAS-SN g or V is more useful at 13–16 mag.
 - The Draco VAR Target count at 13–16 mag (one VizieR query before milestone 4).

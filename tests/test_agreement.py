@@ -132,6 +132,22 @@ def test_a_contaminated_gaia_period_counts_as_half_a_source() -> None:
     assert agreement([settled("ztf", "r", 0.6)], gaia_period=0.6, contaminated={"gaia"}) is None
 
 
+def test_contaminated_sources_alone_never_agree() -> None:
+    """Four half sources weigh as much as two clean ones, but when every one of them may be
+    seeing the same neighbour, the period may be the neighbour's (the fixture blends, NEU-1796)."""
+    votes = [
+        settled("ztf", "g", 0.6),
+        settled("ztf", "r", 0.6),
+        settled("asassn", "V", 0.6),
+        settled("tess", "T", 0.6),
+    ]
+
+    assert agreement(votes, contaminated={"ztf", "asassn", "tess"}) is None
+    found = agreement(votes, contaminated={"ztf", "asassn"})
+    assert found is not None
+    assert found.agreed_sources == ("ztf_g", "ztf_r", "asassn", "tess")
+
+
 def test_contaminated_sources_weigh_less_against_clean_ones_at_another_period() -> None:
     # Three sources at 0.6 d against two at 1.7 d; contaminating two of the three makes it
     # 2.0 against 2.0, a tie.

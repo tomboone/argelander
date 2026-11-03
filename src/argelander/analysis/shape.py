@@ -5,7 +5,7 @@ each type's range, the width and depth of the minima that tell eclipses apart, a
 time and skewness that tell an RRab star from an RRc. `shape` folds one band at the
 Agreement's period and measures them; `variability` says how far a band's spread exceeds
 its errors, which is what tells a constant star from an irregular one when no period is
-agreed.
+agreed. ASAS-SN is not measured for it, since its reported errors understate its scatter.
 
 One band speaks for the Target: the one whose fold stands clearest above its scatter, among
 surveys the blend checks found clean when there are any, and among magnitude bands before
@@ -34,6 +34,10 @@ FOURIER_ORDER = 6  # fewer harmonics round off an RRab star's steep rise
 CURVE_SAMPLES = 1000  # phases the fitted curve is evaluated at
 # The 5th to the 95th percentile of a normal distribution spans 3.29 standard deviations.
 NORMAL_SPREAD = 3.29
+# Surveys whose reported errors understate their scatter, so a spread measured against them
+# says nothing about variability. On the fixtures' three constant stars ASAS-SN's robust
+# scatter is 1.8-3.2 times its median error, ZTF's 0.95-1.3 times (NEU-1796).
+UNDERSTATED_ERRORS = frozenset({"asassn"})
 
 
 def shape(
@@ -56,8 +60,13 @@ def shape(
 
 def variability(curves: Iterable[LightCurve], contaminated: Collection[str]) -> Variability | None:
     """The most variable clean band's spread against its noise; None when every band is
-    contaminated, since a neighbour's light could be what varies."""
-    measured = [_variability(lc) for lc in _bands(curves) if lc.survey not in contaminated]
+    contaminated, since a neighbour's light could be what varies. Surveys in
+    `UNDERSTATED_ERRORS` are never measured."""
+    measured = [
+        _variability(lc)
+        for lc in _bands(curves)
+        if lc.survey not in contaminated and lc.survey not in UNDERSTATED_ERRORS
+    ]
     return max(measured, key=lambda v: v.excess) if measured else None
 
 
