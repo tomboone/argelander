@@ -5,8 +5,17 @@ what to look at when something goes wrong. Every command runs in the `app` conta
 (`docker compose exec app …`), as the Taskfile does. The example output is from the first
 end-to-end run, Draco 13–16, on 2026-10-21 (NEU-1722).
 
-The prod stack on the Mac mini runs the same commands against its own services; section 10
-says how it differs.
+The prod stack on the Mac mini runs the same `argelander` commands, but it has no `app`
+service: there, run them in the fetcher's container instead, from `~/argelander/deploy`.
+
+```sh
+docker compose exec fetcher argelander status   # on the mini; `exec app` on the dev stack
+```
+
+The `task` commands in sections 1, 3 and 9 are for the dev stack only; section 10 says how
+prod is started and kept up to date. The prod database has its own Slices, and a Slice
+selected on the dev stack is not there: check with `SELECT name FROM slices` before naming
+one.
 
 ## 1. Bring the stack up
 
@@ -293,13 +302,14 @@ The `backup` service dumps Postgres to Backblaze B2 with restic every night at 0
 drill and a real restore. It needs four more variables in the mini's `.env` and refuses to
 start without them.
 
-The CLI runs in the fetcher's container (`docker compose exec fetcher argelander status`),
-since prod has no `app` service. Logs are Docker's json-file driver, rotated at 5 × 10 MB per
-service.
+The CLI runs in the fetcher's container (`docker compose exec fetcher argelander …`), since
+prod has no `app` service; that goes for every `argelander` command in sections 2 and 4–8.
+Logs are Docker's json-file driver, rotated at 5 × 10 MB per service.
 
 ## The first run, 2026-10-21
 
-Draco 13–16, 430 Targets, Pipeline Version 0.1.0. The workers ran for about 30 minutes,
+On the dev stack, not the mini: as of 2026-11-02 the prod database holds no Slices. Draco
+13–16, 430 Targets, Pipeline Version 0.1.0. The workers ran for about 30 minutes,
 until 60 Targets had Proposals, then the fetcher was stopped mid-batch and the analyzer
 left to drain: the `status` output in section 4 is the end state, ten fetch Jobs still
 claimed. `recompute-status` changed nothing.
@@ -314,8 +324,9 @@ claimed. `recompute-status` changed nothing.
 Every ASAS-SN failure is the same: Sky Patrol's `get_block_servers` answers `[]`, the
 maintenance outage `fetch/asassn.py` has recorded since 2026-10-13, so each call gives up after
 its retries (`FetchError: asassn: gave up after 3 attempts; last failure: connection error`).
-A fetch Job fails only when every survey fails, so no Job failed. Once Sky Patrol is back,
-`enqueue fetch --slice Dra-13-16` fetches it for every Target.
+A fetch Job fails only when every survey fails, so no Job failed. Sky Patrol was back by
+2026-11-02 (NEU-1764); `enqueue fetch --slice Dra-13-16` on the dev stack fetches it for every
+Target.
 
 | Proposed type | Proposals | Mean Confidence | With Agreement |
 | --- | --- | --- | --- |
