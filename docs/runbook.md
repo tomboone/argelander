@@ -84,7 +84,10 @@ The analyzer's pace is set by the Target's TESS Light Curve. On the mini, 2026-1
 Pipeline Version 0.1.0: about 85 seconds per Target plus 1.8 seconds per 1,000 TESS points,
 which for Dra-13-16 (inside TESS's continuous viewing zone, up to 254,000 points) averaged
 7 minutes per Target. 0.2.0 bins TESS to 10 minutes before the period search (NEU-2187),
-cutting its points three- to fivefold.
+cutting its points three- to fivefold. Measured on the mini, 2026-11-04, over the first 51
+Dra-13-16 Analyses at 0.2.0: 4 minutes per Target on average, from about 2.7 minutes at
+51k–99k TESS points to about 5.3 at 250k, roughly 40 % less than 0.1.0 at the same size. The
+rest of the Slice runs at about 15 Targets an hour.
 
 ## 4. Watch progress
 
