@@ -89,6 +89,12 @@ Dra-13-16 Analyses at 0.2.0: 4 minutes per Target on average, from about 2.7 min
 51k–99k TESS points to about 5.3 at 250k, roughly 40 % less than 0.1.0 at the same size. The
 rest of the Slice runs at about 15 Targets an hour.
 
+Where that time goes (NEU-2190, the Slice's largest TESS curve, 471k points): 325 s in all,
+212 s of it BLS on TESS, whose cost is its binned points times its trial periods; then BLS
+on the other surveys (71 s), Lomb-Scargle (21 s) and the plots (18 s). To profile a Target
+step by step, read-only and beside the running analyzer, use `scripts/profile_target.py`; its
+docstring has the commands for the mini.
+
 ## 4. Watch progress
 
 ```sh
