@@ -78,8 +78,13 @@ done, so stopping it mid-batch leaves ten claimed Jobs that `release_stale` hand
 30 minutes (spec §3).
 
 Pace on 2026-10-21, on the dev laptop: about five minutes per batch of ten Targets for the
-fetcher, TESS setting the pace, and about 20 seconds per Target for the analyzer. The fetcher
-is the bottleneck; the full 430-Target Slice is about 3.5 hours.
+fetcher, TESS setting the pace; the full 430-Target Slice is about 3.5 hours of fetching.
+
+The analyzer's pace is set by the Target's TESS Light Curve. On the mini, 2026-11-03, at
+Pipeline Version 0.1.0: about 85 seconds per Target plus 1.8 seconds per 1,000 TESS points,
+which for Dra-13-16 (inside TESS's continuous viewing zone, up to 254,000 points) averaged
+7 minutes per Target. 0.2.0 bins TESS to 10 minutes before the period search (NEU-2187),
+cutting its points three- to fivefold.
 
 ## 4. Watch progress
 

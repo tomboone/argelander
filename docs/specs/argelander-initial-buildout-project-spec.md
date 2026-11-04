@@ -461,6 +461,29 @@ Order of operations in `analysis/worker.py` for one Target:
    their survey flags alone, because their neighbours are too far apart in phase for a
    median to stand for the star's level, and every point in an eclipse or at a pulsation's
    extreme would be clipped as an outlier.
+
+   *Amended 2026-11-03 (NEU-2187):* after cleaning, TESS is binned to 10 minutes
+   (`analysis/bin.py`, `TESS_BIN_WIDTH`) and every later step reads the binned curve: the
+   periodograms, alias tests, blend checks, Agreement, shape, variability, the Proposal's
+   range and epoch, and the plots, `classify --replot` included. Cleaning stays at native
+   cadence because its running median needs neighbours within ±0.005 d. A Draco Target in
+   TESS's continuous viewing zone has up to 254,000 points, and on the mini the analyzer
+   cost about 85 s a Target plus 1.8 s per 1,000 TESS points (7 minutes on average for
+   Dra-13-16 at 0.1.0). Bins are a fixed grid starting half a bin before the first point,
+   so a cadence of exactly 10 minutes puts each point mid-bin rather than on an edge. Each
+   non-empty bin becomes its points' mean time, mean value and mean `sap`, with error
+   `sqrt(sum(error²)) / n`; a one-point bin passes through unchanged, so full-frame curves
+   are left nearly as they are, and empty bins produce nothing. The mean rather than the
+   median, because cleaning has already clipped the outliers. 10 minutes because the
+   shortest period searched is 0.05 d: the bin is 14 % of that cycle, so a sinusoid there
+   keeps about 97 % of its amplitude, and it is narrower than BLS's narrowest box (0.01 d).
+   ZTF, ASAS-SN and Gaia are not binned. `meta["bin"]` records the width and the input
+   count; `analyses.inputs` still records the Cache file's count. Pipeline Version 0.2.0.
+   Against the dev Cache's 60 Draco Targets (TESS 21k–50k points), binned and unbinned
+   gave the same Agreement for all 60: the same period for the 7 that agree, none for the
+   other 53. The TESS band's own best period moved for 6, each a 30–77 d peak (between
+   29.4 and 76.6 d either way) in a Target with no Agreement, longer than a sector, where
+   TESS's residual systematics, not the star, set the peak.
 4. **Periodogram** (`periodogram.py`): astropy `LombScargle` per band over 0.05–100 d
    (grid oversampled ×10), plus astropy `BoxLeastSquares` over 0.1–30 d for eclipsers.
    Record the top five peaks with power and false-alarm probability per band. Gaia's
