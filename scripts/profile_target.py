@@ -1,16 +1,17 @@
-"""Profile one Target's Analysis stage by stage, read-only (NEU-2190).
+"""Profile one Target's Analysis step by step, read-only (NEU-2190).
 
-It reads the Target and its `ok` Light Curve files in a READ ONLY transaction, as
-`analysis/worker.py` `run_once` does, and reads the curves from the Cache. Then:
+It reads the Target and its `ok` Light Curve files with the query `analysis/worker.py`
+`run_once` uses, but in a READ ONLY transaction, and reads the curves from the Cache. Then:
 
-  pass 1: `pipeline.analyze` with a timer around every stage, and around every BLS `power`
+  pass 1: `pipeline.analyze` with a timer around every step, and around every BLS `power`
           call (coarse, refine, Gaia period, with each one's grid size); then the worker's
           hand-off without its database writes (`propose.elements`, then `render_all`);
   pass 2: the same under cProfile (skip it with --no-cprofile).
 
 It writes `report.txt`, `report.json`, `profile.prof`, `profile.txt` and the plots under
 --out (/tmp/neu2190 by default) and prints report.txt. Nothing is written to the database,
-the Cache or PLOTS_DIR. Without --target it takes the Target with the most TESS points.
+the Cache or PLOTS_DIR. ("Step" here is one call inside the analyze Stage, not a Stage.)
+Without --target it takes the Target with the most TESS points.
 
 On the mini, in a one-off analyzer container beside the running analyzer (about 12 minutes
 for a viewing-zone Target, both passes), from a laptop checkout:
@@ -39,6 +40,7 @@ from typing import Any
 
 import numpy as np
 from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session
 
 import argelander.analysis.periodogram as periodogram
 import argelander.analysis.pipeline as pipeline
@@ -60,11 +62,12 @@ from argelander.db.session import sync_session_factory
 from argelander.plots.render import render_all
 from argelander.selector import gaia_record
 
-# --- stage timers ---------------------------------------------------------------------------
+# --- step timers ----------------------------------------------------------------------------
 
 timings: dict[tuple[str, str], float] = defaultdict(float)
 bls_calls: list[dict[str, Any]] = []
 current_bls: dict[str, Any] = {}
+fine_grids: dict[str, int] = {}
 
 
 def label_of(args: tuple) -> str:
@@ -74,13 +77,13 @@ def label_of(args: tuple) -> str:
     return "-"
 
 
-def timed(stage: str, fn: Callable) -> Callable:
+def timed(step: str, fn: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
         try:
             return fn(*args, **kwargs)
         finally:
-            timings[(stage, label_of(args))] += time.perf_counter() - start
+            timings[(step, label_of(args))] += time.perf_counter() - start
 
     return wrapper
 
@@ -94,6 +97,7 @@ def timed_bls(fn: Callable) -> Callable:
             coarse=int(periodogram._bls_grid(lc.time, coarsen=periodogram.BLS_COARSEN).size),
             calls=0,
         )
+        fine_grids[current_bls["label"]] = current_bls["fine"]
         start = time.perf_counter()
         try:
             return fn(lc, *args, **kwargs)
@@ -105,7 +109,7 @@ def timed_bls(fn: Callable) -> Callable:
 
 
 class TimedBLS(periodogram.BoxLeastSquares):
-    """Records every `power` call BLS makes: its grid size, and which stage it is."""
+    """Records every `power` call BLS makes: its grid size, and which pass it is."""
 
     def power(self, period, duration, *args, **kwargs):
         start = time.perf_counter()
@@ -117,18 +121,18 @@ class TimedBLS(periodogram.BoxLeastSquares):
             if current_bls:
                 current_bls["calls"] += 1
                 if n == 1:
-                    stage = "gaia"
+                    bls_pass = "gaia"
                 elif current_bls["coarse"] < 3:
-                    stage = "fine (one stage)"
+                    bls_pass = "fine (single pass)"
                 else:
-                    stage = "coarse" if current_bls["calls"] == 1 else "refine"
+                    bls_pass = "coarse" if current_bls["calls"] == 1 else "refine"
                 label = current_bls["label"]
             else:  # eclipse_duration, from the hand-off
-                stage, label = "eclipse_duration", "-"
-            bls_calls.append({"label": label, "stage": stage, "n_periods": n, "seconds": seconds})
+                bls_pass, label = "eclipse_duration", "-"
+            bls_calls.append({"label": label, "pass": bls_pass, "n_periods": n, "seconds": seconds})
 
 
-STAGES = {
+STEPS = {
     "clean": "clean",
     "bin_tess": "bin_tess",
     "lomb_scargle": "lomb_scargle",
@@ -145,8 +149,8 @@ STAGES = {
 
 
 def instrument() -> None:
-    for name, stage in STAGES.items():
-        setattr(pipeline, name, timed(stage, getattr(pipeline, name)))
+    for name, step in STEPS.items():
+        setattr(pipeline, name, timed(step, getattr(pipeline, name)))
     # setattr, not assignment: the stand-ins are not the patched names' declared types.
     for module, name, value in (
         (pipeline, "box_least_squares", timed_bls(pipeline.box_least_squares)),
@@ -190,11 +194,7 @@ def load(target_id: int | None, min_tess_points: int) -> tuple[Target, list, dic
                 AnalysisRow.pipeline_version == PIPELINE_VERSION,
             )
         ).first()
-        claimed = session.scalar(
-            select(func.count())
-            .select_from(Job)
-            .where(Job.kind == JobKind.ANALYZE, Job.status == JobStatus.CLAIMED)
-        )
+        claimed = claimed_analyze_jobs(session)
         info = {
             "target_id": target.id,
             "vsx_name": target.vsx_name,
@@ -224,6 +224,24 @@ def load(target_id: int | None, min_tess_points: int) -> tuple[Target, list, dic
     return target, list(files), info
 
 
+def claimed_analyze_jobs(session: Session) -> int:
+    """analyze Jobs claimed now: the analyzer's own while it runs, and any stale claim."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Job)
+            .where(Job.kind == JobKind.ANALYZE, Job.status == JobStatus.CLAIMED)
+        )
+        or 0
+    )
+
+
+def claimed_now() -> int:
+    with sync_session_factory()() as session:
+        session.execute(text("SET TRANSACTION READ ONLY"))
+        return claimed_analyze_jobs(session)
+
+
 def run(target: Target, files: list, out: Path) -> dict[str, Any]:
     settings = get_settings()
     phases: dict[str, Any] = {}
@@ -236,7 +254,7 @@ def run(target: Target, files: list, out: Path) -> dict[str, Any]:
     found = elements(analysis, cleaned, target)
     t3 = time.perf_counter()
     contaminated = analysis.blend.surveys if analysis.blend is not None else frozenset()
-    lead = range_curve(cleaned, contaminated)
+    range_band = range_curve(cleaned, contaminated)
     render_all(
         analysis,
         cleaned,
@@ -244,7 +262,7 @@ def run(target: Target, files: list, out: Path) -> dict[str, Any]:
         period=found.period,
         epoch=found.epoch_bjd,
         out_dir=out / "plots",
-        chosen=(lead.survey, lead.band) if lead is not None else None,
+        chosen=(range_band.survey, range_band.band) if range_band is not None else None,
     )
     t4 = time.perf_counter()
     phases.update(
@@ -262,8 +280,8 @@ def report(info: dict[str, Any], phases: dict[str, Any]) -> str:
     lines = [
         f"Target {info['vsx_name']} (id {info['target_id']}), Gaia DR3 {info['gaia_dr3']}, "
         f"pipeline {info['pipeline_version']}",
-        f"analyze Jobs claimed at start (the analyzer running alongside): "
-        f"{info['analyze_jobs_claimed_at_start']}",
+        f"analyze Jobs claimed at start / after pass 1 (the analyzer running alongside): "
+        f"{info['analyze_jobs_claimed_at_start']} / {info.get('analyze_jobs_claimed_after')}",
         f"stored 0.2.0 Analysis took: {info['stored_analysis_seconds']} s",
         "files: " + json.dumps(info["files"]),
         "points after clean+bin: " + json.dumps(phases["_points"]),
@@ -272,25 +290,33 @@ def report(info: dict[str, Any], phases: dict[str, Any]) -> str:
     ]
     for key in ("load_curves", "analyze", "elements", "render_all", "total"):
         lines.append(f"  {key:<20} {phases[key]:8.2f}")
-    lines += ["", "stage / band           seconds"]
-    by_stage: dict[str, float] = defaultdict(float)
-    for (stage, label), seconds in sorted(timings.items()):
-        lines.append(f"  {stage:<12} {label:<14} {seconds:8.2f}")
-        by_stage[stage] += seconds
-    lines += ["", "stage totals"]
-    for stage, seconds in sorted(by_stage.items(), key=lambda kv: -kv[1]):
-        lines.append(f"  {stage:<20} {seconds:8.2f}")
-    stage_sum = sum(by_stage.values())
-    lines.append(
-        f"  {'(sum of stages)':<20} {stage_sum:8.2f}  of analyze {phases['analyze']:.2f}"
-        f" ({100 * stage_sum / phases['analyze']:.1f} %)"
-    )
-    lines += ["", "BLS power calls: band, stage, grid size, seconds"]
+    lines += ["", "step / band            seconds"]
+    by_step: dict[str, float] = defaultdict(float)
+    for (step, label), seconds in sorted(timings.items()):
+        lines.append(f"  {step:<12} {label:<14} {seconds:8.2f}")
+        by_step[step] += seconds
+    lines += ["", "step totals"]
+    for step, seconds in sorted(by_step.items(), key=lambda kv: -kv[1]):
+        lines.append(f"  {step:<20} {seconds:8.2f}")
+    step_sum = sum(by_step.values())
+    accounted = step_sum + phases["load_curves"] + phases["elements"] + phases["render_all"]
+    lines += [
+        f"  {'(sum of steps)':<20} {step_sum:8.2f}  of analyze {phases['analyze']:.2f}"
+        f" ({100 * step_sum / phases['analyze']:.1f} %)",
+        f"  {'(+ load, hand-off)':<20} {accounted:8.2f}  of total {phases['total']:.2f}"
+        f" ({100 * accounted / phases['total']:.1f} %)",
+    ]
+    lines += ["", "BLS power calls: band, pass, grid size, seconds, share of the band's BLS"]
+    band_bls = {label: seconds for (step, label), seconds in timings.items() if step == "bls"}
     for call in bls_calls:
+        total = band_bls.get(call["label"])
+        share = f"{100 * call['seconds'] / total:5.1f} %" if total else ""
         lines.append(
-            f"  {call['label']:<14} {call['stage']:<18} {call['n_periods']:>10} "
-            f"{call['seconds']:8.2f}"
+            f"  {call['label']:<14} {call['pass']:<18} {call['n_periods']:>10} "
+            f"{call['seconds']:8.2f}  {share}"
         )
+    lines += ["", "BLS fine grid (the single-pass search the coarse pass replaces), by band"]
+    lines += [f"  {label:<14} {fine:>10}" for label, fine in fine_grids.items()]
     return "\n".join(lines)
 
 
@@ -306,6 +332,7 @@ def main() -> None:
     target, files, info = load(args.target, args.min_tess_points)
     instrument()
     phases = run(target, files, args.out)
+    info["analyze_jobs_claimed_after"] = claimed_now()
     text_report = report(info, phases)
     (args.out / "report.txt").write_text(text_report + "\n")
     (args.out / "report.json").write_text(
@@ -313,10 +340,11 @@ def main() -> None:
             {
                 "info": info,
                 "phases": phases,
-                "stages": [
-                    {"stage": s, "label": label, "seconds": v} for (s, label), v in timings.items()
+                "steps": [
+                    {"step": s, "label": label, "seconds": v} for (s, label), v in timings.items()
                 ],
                 "bls_calls": bls_calls,
+                "bls_fine_grids": fine_grids,
             },
             indent=2,
             default=str,

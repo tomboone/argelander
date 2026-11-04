@@ -92,7 +92,7 @@ rest of the Slice runs at about 15 Targets an hour.
 Where that time goes (NEU-2190, the Slice's largest TESS curve, 471k points): 325 s in all,
 212 s of it BLS on TESS, whose cost is its binned points times its trial periods; then BLS
 on the other surveys (71 s), Lomb-Scargle (21 s) and the plots (18 s). To profile a Target
-by stage, read-only and beside the running analyzer, use `scripts/profile_target.py`; its
+step by step, read-only and beside the running analyzer, use `scripts/profile_target.py`; its
 docstring has the commands for the mini.
 
 ## 4. Watch progress
