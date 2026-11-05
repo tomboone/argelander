@@ -33,10 +33,11 @@ cannot.
 | **Gaia DR3** | ESA's astrometry mission; a scan of the whole sky, 2014–2017 | G, BP, RP | A few dozen visits over 34 months | 0.7″ | 5–21 mag | Precise positions, so it finds neighbours; parallax and colour for the CMD; its own published period for many stars | Too few visits to settle a period from its photometry alone |
 | **ASAS-SN** | Small telescopes on several continents imaging the whole sky nightly since 2012 | V (to 2018), g (since 2017) | Nightly; 12 years | 8″ pixels, 17″ aperture | 10–16.5 mag | The longest baseline, and the V band VSX prefers for ranges | Coarse pixels, so blends within 17″; our Slice is at its faint end |
 
-ASAS-SN is absent from every figure in this guide. Its light-curve service was down while
-the fixtures were built, and NEU-1796 adds it. When it arrives it will be one more series
-on the combined plot, one more panel on the periodogram, and one more vote in Agreement,
-and V-band ranges for the form.
+ASAS-SN turns up in four places below. Its V and g bands are two more series on the
+combined plot and two more pairs of panels on the periodogram (section 3.3). Together they
+cast one vote in Agreement, because one instrument puts the same aliases into both
+(section 3.5). And when ASAS-SN is not contaminated, its V band is where the Proposal's
+magnitude range is read from, because V is the band VSX prefers for ranges (section 3.8).
 
 **The combined light curve** (`combined.png`) is the first thing to look at: every survey
 on one time axis. The horizontal axis is time in days (BJD_TDB, the time system every
@@ -47,9 +48,11 @@ to the level of the others. Here is V0364 Dra:
 
 ![V0364 Dra, all surveys](figures/v0364-dra/combined.png)
 
-What to notice: ZTF (circles) spans the whole seven years; TESS (dots) comes in dense
-clumps, one per 27-day sector, in the years it happened to point this way; Gaia (squares)
-is a sprinkle of points in 2014–2017. The star scatters over about a magnitude at every
+What to notice: ZTF (circles) spans the whole seven years; ASAS-SN (triangles) reaches
+back further, its V band covering late 2013 to 2018, mostly before ZTF began, and its g
+band running alongside ZTF from 2017; TESS (dots) comes in dense clumps, one per 27-day sector, in the
+years it happened to point this way; Gaia (squares) is a sprinkle of points in 2014–2017.
+The star scatters over about a magnitude at every
 epoch, which is the pulsation seen without a period. The legend already says
 *(contaminated)* against TESS; section 3.6 explains what that means for this star. VSX asks for exactly this plot with a data-mined submission, and forbids one copied
 from a survey's website.
@@ -68,8 +71,10 @@ Before any search, each Light Curve is cleaned (`analysis/clean.py`):
 On the committed fixtures nothing is clipped, because they are trimmed to 500 points a
 band and no two TESS points are close enough; on a full TESS sector it matters. The
 notebook prints the before-and-after count per band. For V0364 Dra every band survives:
-ZTF g and r with 500 points each over 2,770 days, TESS with 500 from sectors spread over
-1,770 days, and Gaia's three bands with 32 to 41 points over 900 days.
+ZTF g and r with 500 points each over 2,770 days, ASAS-SN g with 500 over 2,810 days and
+V with 295 over 1,710, TESS with 499 from sectors spread over 1,770 days (two of its 500
+points fall in one of the 10-minute bins TESS is averaged into after cleaning, NEU-2187),
+and Gaia's three bands with 32 to 41 points over 900 days.
 
 ## 3.3 The periodogram
 
@@ -94,13 +99,13 @@ found it.
 
 ![V0364 Dra periodogram](figures/v0364-dra/periodogram.png)
 
-What to notice for V0364 Dra: the same tall peak at 0.477 days in ZTF g, ZTF r and TESS,
-with the Gaia line on top of it. Now look at the dashed lines in the ZTF panels: there is
-a peak under every one of them. At 0.32 days and 0.24 days, at 0.95 days, even at 10
+What to notice for V0364 Dra: the same tall peak at 0.477 days in ZTF g, ZTF r, both
+ASAS-SN bands and TESS, with the Gaia line on top of it. Now look at the dashed lines in
+the ZTF and ASAS-SN panels: there is a peak under every one of them. At 0.32 days and 0.24 days, at 0.95 days, even at 10
 days, the same pulsation shows up wherever once-a-night sampling can put it, and the
 0.32-day peak is nearly as tall as the real one. This is chapter 2's alias problem in a
 picture, and the periodogram alone cannot settle it; the next step does, by folding, and
-the fold at 0.3227 days scores 0.45 against 0.04 at 0.477 days. Gaia's own three bands,
+the fold at 0.3227 days scores 0.45 against 0.03 at 0.477 days. Gaia's own three bands,
 with 32 to 41 points, are a forest of peaks of similar height, which is why Gaia's
 photometry never decides a period on its own.
 
@@ -195,20 +200,29 @@ Each source votes with the period its alias test ranked first. The rules on the 
   Agreement, and the longer period wins, because it is the one that separates an eclipsing
   binary's two eclipses. The relation is recorded for the classifier.
 - **A contaminated source counts half** (section 3.6).
+- **At least one agreeing source must be clean.** Several surveys can all be seeing the
+  same bright neighbour, and when they are they agree with each other perfectly, on the
+  neighbour's period. Agreement between them proves nothing about the Target. So however
+  much contaminated weight lines up behind a period, it needs one uncontaminated source
+  beside it. Four contaminated sources weigh 2.0, as much as two clean ones, and without
+  this rule they would be enough (section 3.6 has the star where that happens).
 - **The period most sources found wins; a tie is no Agreement.** When two periods have
   equal weight, nothing is accepted. The bulk imports' rule, take the tallest peak, is
   exactly what this refuses to do.
 
-For V0364 Dra the notebook's votes table reads: TESS 0.477045, ZTF g 0.477041, ZTF r
-0.477038, Gaia 0.477059, all within 0.1 %; Agreement at 0.4770454 days, relation 1:1. The
-star is settled four ways.
+For V0364 Dra the notebook's votes table reads: ASAS-SN 0.477032 in V and 0.477038 in g,
+TESS 0.477045 (at half weight, its field being crowded), ZTF g 0.477041, ZTF r 0.477040,
+Gaia 0.477059, all within 0.1 %; Agreement at 0.4770423 days, relation 1:1. The star is
+settled five ways.
 
-For CSS_J181701.4+514940: ZTF g, ZTF r and TESS each vote 0.154292 days, Gaia 0.308582;
-Agreement at 0.3085835 days, relation 2:1. Three surveys found the half period and Gaia
-the whole, and the rule took the whole.
+For CSS_J181701.4+514940: ZTF g, ZTF r, ASAS-SN and TESS each vote 0.15429 days, Gaia
+0.308582; Agreement at 0.3085831 days, relation 2:1. Four surveys found the half period and
+Gaia the whole, and the rule took the whole.
 
-The review app's evidence page will list the votes this way; in the notebook, look for
-the table after each star's **Agreement** heading.
+The table lists ASAS-SN's two bands on two rows, each with its weight, but they are one
+source: ASAS-SN counts once towards the total. The review app's evidence page will list the
+votes this way; in the notebook, look for the table after each star's **Agreement**
+heading.
 
 ## 3.6 Blends and contamination radii
 
@@ -236,16 +250,19 @@ in the TESS field.
 
 CSS_J160212.7+530724 is the case the rule exists for. The neighbour at 1.2″ is 1.9 mag
 brighter, so ZTF, Gaia and ASAS-SN are all flagged, and the TESS field is flagged on its
-own account. The flags come from the Gaia catalogue, not from the survey's data, which is
-why ASAS-SN is flagged although no ASAS-SN Light Curve exists yet. ZTF g, ZTF r and TESS all vote 0.159 days, which would be an easy Agreement,
-but at half weight each they add up to 1.5 of the 2 required. No Agreement, no phase plot,
-no period proposed.
+own account. The flags come from the Gaia catalogue, not from the surveys' Light Curves: a
+neighbour that close and that bright is inside every ground-based aperture, whatever the
+light curves look like. ZTF g, ZTF r, ASAS-SN and TESS all vote 0.159 days, half the
+neighbour's eclipsing period. At half weight each, the four add up to 2.0, exactly the two
+sources' weight an Agreement needs. What stops it is the clean-source rule of section 3.5:
+not one of the four is clean, and four surveys agreeing on the neighbour's period are no
+evidence that it is this star's. No Agreement, no phase plot, no period proposed.
 
 ![CSS_J160212.7+530724, all surveys](figures/css-j160212-7-530724/combined.png)
 
 What to notice: the star looks like a perfectly good variable. But read the magnitude
-axis. Gaia puts this star at G = 15.7, and ZTF reports it at 13.6 to 14.1: ZTF's aperture
-is measuring mostly the neighbour. That is the one hint in the light curve itself; the
+axis. Gaia puts this star at G = 15.7, and ZTF and ASAS-SN both report it near 14, a
+magnitude and a half too bright: their apertures are measuring mostly the neighbour. That is the one hint in the light curve itself; the
 rest is the catalogue of positions saying whose light it is.
 
 Two honest caveats about the TESS and ZTF flags, which chapter 4 returns to. TESS's
@@ -299,17 +316,26 @@ sequence, the Cepheid and both semiregulars on the giant branch.
 
 ## 3.8 What goes to VSX
 
-`submission.png` is the one image the revision form accepts: the phase plot of the band
-with the most points (or the one the Review chooses) above the combined light curve,
-rendered under the form's 1 MB limit.
+`submission.png` is the one image the revision form accepts: the phase plot of the
+[range band](../../CONTEXT.md#proposals-and-review) above the combined light curve,
+rendered under the form's 1 MB limit. The range band is the Light Curve the Proposal's
+magnitude range is read from. VSX prefers ranges in V, so it is ASAS-SN V whenever ASAS-SN
+has enough V points and is not contaminated (NEU-2185); a neighbour inside its 17″
+aperture adds light to every point, and a range read through it would be the two stars
+together. Otherwise it is the [epoch band](../../CONTEXT.md#proposals-and-review): the
+magnitude band with a VSX passband that has the most points, TESS's flux next, Gaia's few
+dozen epochs last. Leading with the range band means the moderator sees the very curve the
+range was read from. For V0364 Dra it is ASAS-SN V:
 
 ![V0364 Dra submission plot](figures/v0364-dra/submission.png)
 
 Alongside it the Proposal carries the form's fields, in the vocabulary of
 [`docs/reference/vsx-revision-form.md`](../reference/vsx-revision-form.md): the period to the
 precision the data justify, the epoch in HJD, the type, the magnitude range at maximum and
-minimum in a named passband read from the binned curve, and the Remarks sentences for any
-contamination. A Target with no Agreement gets `submission.png` as the combined light
+minimum in a named passband read from the range band's binned curve, and the Remarks
+sentences for any contamination. The epoch is always read from the epoch band, even when
+the range comes from ASAS-SN V: V stopped in 2018, and a band with more points over a later
+baseline pins phase 0 down better. A Target with no Agreement gets `submission.png` as the combined light
 curve alone and a Proposal of type `VAR` with low Confidence, so that the failure is
 visible rather than silent.
 
