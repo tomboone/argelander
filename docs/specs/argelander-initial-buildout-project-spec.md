@@ -515,6 +515,29 @@ Order of operations in `analysis/worker.py` for one Target:
    box nears the period itself. CSS_J173907.6+550053's TESS best BLS peak moved from
    0.1001986 d to 0.1002092 d this way, a noise peak for an RRab.
    `box_least_squares(..., two_stage=False)` keeps the single pass for comparison.
+
+   *Amended 2026-11-05 (NEU-2191):* TESS's coarse pass reads its curve re-binned from 10 to
+   30 minutes (`BLS_COARSE_BIN_WIDTH`, by `bin_tess` with a wider `width`), because a BLS
+   pass costs one sweep over the points per trial period, and on the mini TESS's coarse pass
+   was 174 s of a continuous-viewing-zone Target's 325 s (NEU-2190, Target 295: 94,514
+   binned points, 74,391 coarse periods). A coarse step already lets a 0.01 d eclipse sit up
+   to 0.04 d off a trial period, and a 30-minute bin adds at most 0.010 d. Both grids still
+   come from the 10-minute curve's times. The refine windows are the 30-minute curve's top
+   500 coarse peaks, searched on the 10-minute curve, and TESS's reported peaks are those
+   windows' own local maxima there (a window's edge is never a peak); the Gaia period is
+   scored on the 10-minute curve, and every other step reads it as before. The returned
+   periodogram, which the plot draws, is the 30-minute curve's throughout, its refine
+   windows scored on it too: the two curves' powers differ off the peaks, by about 1.5× in
+   median on a synthetic eclipsing curve (a real eclipse leaks more power into off-peak
+   trials through 30-minute bins; pure noise shows no difference), so one curve's windows
+   merged into the other's coarse grid would draw a step at every window edge. That extra
+   scoring costs about a third of the 10-minute refine. So for TESS's BLS alone, the peak
+   and Gaia powers in the evidence page's table are the 10-minute curve's and can stand
+   above the plotted curve at the same period, whose tallest peak need not be the reported
+   best. On synthetic TESS curves (three
+   2-minute sectors, a 0.002-deep eclipse in 0.003 noise) the best period is unchanged for
+   a 1 % duty-cycle eclipse at 3.7 d and a 0.01 d eclipse at 0.81 d, which is narrower than
+   one 30-minute bin. Pipeline Version 0.3.0.
 5. **Aliases** (`aliases.py`): for each candidate test P, 2P, P/2 and the 1 d, 0.5 d and
    sidereal-day (0.99727 d) aliases; for TESS also 13.7 d orbital systematics. Prefer the
    candidate whose phase-folded scatter is lowest and record the ranking.

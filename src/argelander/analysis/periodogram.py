@@ -23,15 +23,25 @@ steps either side. Far more peaks are refined than are reported: the dilution ca
 true peak, a sparsely sampled one most of all, below hundreds of noise peaks that the coarse
 step leaves alone.
 
+TESS's coarse pass reads its Light Curve re-binned from 10 to 30 minutes
+(`BLS_COARSE_BIN_WIDTH`, NEU-2191), because a pass costs one sweep over the points per trial
+period and TESS's coarse pass was most of a continuous-viewing-zone Target's Analysis. The
+coarse step already lets a 0.01 d eclipse sit up to 0.04 d off a trial period; a 30-minute
+bin adds at most 0.010 d to that. The refine windows and the Gaia period are searched on the
+10-minute curve as before, and TESS's peaks are the refined windows' own local maxima. Its
+returned periodogram, which the plot draws, is the re-binned curve's throughout, the refined
+windows scored on it too: the two curves' powers differ off the peaks (a real eclipse leaks
+more power into the off-peak trials through 30-minute bins), so merging one curve's windows
+into the other's coarse grid would draw a step at every window edge.
+
 Gaia's published period is the first hypothesis: whenever one is supplied its power is
 recorded beside the top peaks, whether or not a peak lands on it.
 """
 
-from collections.abc import Callable
-
 import numpy as np
 from astropy.timeseries import BoxLeastSquares, LombScargle
 
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.clean import clean, sufficient
 from argelander.analysis.model import Method, Peak, PeriodogramResult
 from argelander.lightcurve import LightCurve
@@ -47,6 +57,9 @@ BLS_MIN_DUTY_CYCLE = 0.01  # the narrowest eclipse searched for, as a fraction o
 BLS_COARSEN = BLS_DURATIONS[-1] / BLS_DURATIONS[0]  # coarse pass's step, in fine steps
 BLS_REFINE_PEAKS = 500  # coarse peaks re-searched at the fine step (spec §6 step 4)
 BLS_REFINE_HALF_WIDTH = 2  # coarse steps either side of a peak that are re-searched
+# TESS's coarse pass only. A third of the points of the 10-minute curve, and well inside the
+# 0.04 d a coarse step already lets an eclipse drift (spec §6 step 4).
+BLS_COARSE_BIN_WIDTH = 30 / 1440  # days
 # Box widths, as fractions of the period, that `eclipse_duration` fits at one known period.
 ECLIPSE_DUTY_CYCLES = np.geomspace(0.005, 0.3, 40)
 
@@ -107,18 +120,29 @@ def box_least_squares(
     fine = _bls_grid(lc.time)
     if not sufficient(lc) or fine.size < 3:
         return _insufficient(lc, "bls")
-    # BLS looks for dips. A star in eclipse is fainter, which is a larger magnitude.
-    y = -lc.value if lc.value_kind == "mag" else lc.value
-    bls = BoxLeastSquares(lc.time, y, lc.error)
-
-    def power_at(frequency: np.ndarray) -> np.ndarray:
-        return np.asarray(bls.power(1.0 / frequency, BLS_DURATIONS).power)
-
+    bls = _bls(lc)
+    # Both grids come from this curve's times, so the refine windows line up with the fine
+    # grid whichever curve ranks the coarse one.
     coarse = _bls_grid(lc.time, coarsen=BLS_COARSEN)
     if two_stage and coarse.size >= 3:
-        frequency, power = _refine(coarse, power_at(coarse), fine, power_at)
+        coarse_lc = bin_tess(lc, width=BLS_COARSE_BIN_WIDTH)
+        rebinned = coarse_lc is not lc and sufficient(coarse_lc)
+        ranking = _bls(coarse_lc) if rebinned else bls
+        coarse_power = _power(ranking, coarse)
+        window = _windows(coarse, coarse_power, fine)
+        refined_power = _power(bls, fine[window])
+        if rebinned:
+            # Peaks from the 10-minute refine; the periodogram from the 30-minute curve alone.
+            peaks = _top_peaks(fine, _scatter(fine.size, window, refined_power))
+            frequency, power = _merge(
+                coarse, coarse_power, fine[window], _power(ranking, fine[window])
+            )
+        else:
+            frequency, power = _merge(coarse, coarse_power, fine[window], refined_power)
+            peaks = _top_peaks(frequency, power)
     else:
-        frequency, power = fine, power_at(fine)
+        frequency, power = fine, _power(bls, fine)
+        peaks = _top_peaks(frequency, power)
 
     gaia = None
     if gaia_period is not None:
@@ -133,10 +157,7 @@ def box_least_squares(
         n_points=lc.time.size,
         frequency=frequency,
         power=power,
-        peaks=tuple(
-            Peak(period=p, power=w, false_alarm_probability=None)
-            for p, w in _top_peaks(frequency, power)
-        ),
+        peaks=tuple(Peak(period=p, power=w, false_alarm_probability=None) for p, w in peaks),
         gaia=gaia,
         insufficient=False,
     )
@@ -152,29 +173,53 @@ def eclipse_duration(lc: LightCurve, period: float) -> float | None:
     """
     if not sufficient(lc):
         return None
-    y = -lc.value if lc.value_kind == "mag" else lc.value
-    fit = BoxLeastSquares(lc.time, y, lc.error).power([period], ECLIPSE_DUTY_CYCLES * period)
+    fit = _bls(lc).power([period], ECLIPSE_DUTY_CYCLES * period)
     return float(np.asarray(fit.duration)[0]) / period
 
 
-def _refine(
-    coarse: np.ndarray,
-    coarse_power: np.ndarray,
-    fine: np.ndarray,
-    power_at: Callable[[np.ndarray], np.ndarray],
+def _bls(lc: LightCurve) -> BoxLeastSquares:
+    # BLS looks for dips. A star in eclipse is fainter, which is a larger magnitude.
+    y = -lc.value if lc.value_kind == "mag" else lc.value
+    return BoxLeastSquares(lc.time, y, lc.error)
+
+
+def _power(bls: BoxLeastSquares, frequency: np.ndarray) -> np.ndarray:
+    return np.asarray(bls.power(1.0 / frequency, BLS_DURATIONS).power)
+
+
+def _windows(coarse: np.ndarray, coarse_power: np.ndarray, fine: np.ndarray) -> np.ndarray:
+    """Indices into `fine`, ascending, of the frequencies within `BLS_REFINE_HALF_WIDTH`
+    coarse steps of the `BLS_REFINE_PEAKS` highest coarse peaks."""
+    peaks = _maxima(coarse_power, BLS_REFINE_PEAKS)
+    low = coarse[np.maximum(peaks - BLS_REFINE_HALF_WIDTH, 0)]
+    high = coarse[np.minimum(peaks + BLS_REFINE_HALF_WIDTH, coarse.size - 1)]
+    starts = np.searchsorted(fine, low, side="left")
+    stops = np.searchsorted(fine, high, side="right")
+    spans = [np.arange(a, b) for a, b in zip(starts, stops, strict=True)]
+    return np.unique(np.concatenate([np.empty(0, dtype=np.intp), *spans]))
+
+
+def _merge(
+    coarse: np.ndarray, coarse_power: np.ndarray, refined: np.ndarray, refined_power: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """The coarse grid with the fine grid around its top peaks merged in, ascending."""
-    windows = []
-    for i in _maxima(coarse_power, BLS_REFINE_PEAKS):
-        low = coarse[max(i - BLS_REFINE_HALF_WIDTH, 0)]
-        high = coarse[min(i + BLS_REFINE_HALF_WIDTH, coarse.size - 1)]
-        windows.append(fine[(fine >= low) & (fine <= high)])
-    refined = np.unique(np.concatenate([np.empty(0), *windows]))
-    # Where a fine frequency coincides with a coarse one their powers are identical, so
-    # np.unique may keep either copy.
+    """The coarse grid with the refined frequencies merged in, ascending.
+
+    Where a refined frequency coincides with a coarse one, both are scored on one curve and
+    their powers are identical, so np.unique may keep either copy.
+    """
     frequency, keep = np.unique(np.concatenate([coarse, refined]), return_index=True)
-    power = np.concatenate([coarse_power, power_at(refined)])[keep]
-    return frequency, power
+    return frequency, np.concatenate([coarse_power, refined_power])[keep]
+
+
+def _scatter(size: int, index: np.ndarray, power: np.ndarray) -> np.ndarray:
+    """`power` at `index` in an array of `size` that is NaN elsewhere.
+
+    A NaN neighbour is never exceeded, so `_maxima` finds no peak at a window's edge, and
+    none outside the windows.
+    """
+    full = np.full(size, np.nan)
+    full[index] = power
+    return full
 
 
 def _regular_grid(time: np.ndarray, min_period: float, max_period: float) -> np.ndarray:

@@ -18,6 +18,9 @@ full-frame curves come out as they went in, bar the odd pair of 600 s points tha
 one bin where a later sector's cadence, in BJD a hair off 10 minutes, drifts across an edge.
 
 ZTF, ASAS-SN and Gaia hold a few hundred points a band and are returned as they are.
+
+BLS's coarse pass re-bins the binned curve again, to `periodogram.BLS_COARSE_BIN_WIDTH`, with
+the same function and a wider `width` (NEU-2191); nothing else reads that curve.
 """
 
 import numpy as np
@@ -31,18 +34,18 @@ from argelander.lightcurve import LightCurve
 TESS_BIN_WIDTH = 10 / 1440  # days
 
 
-def bin_tess(lc: LightCurve) -> LightCurve:
-    """A cleaned TESS Light Curve binned to `TESS_BIN_WIDTH`; any other survey's unchanged.
+def bin_tess(lc: LightCurve, width: float = TESS_BIN_WIDTH) -> LightCurve:
+    """A cleaned TESS Light Curve binned to `width` days; any other survey's unchanged.
 
     `meta["bin"]` records the width and how many points went in.
     """
     if lc.survey != "tess":
         return lc
     n = lc.time.size
-    meta = {**lc.meta, "bin": {"width_days": TESS_BIN_WIDTH, "n_input": int(n)}}
+    meta = {**lc.meta, "bin": {"width_days": width, "n_input": int(n)}}
     if n == 0:
         return _with(lc, lc.time, lc.value, lc.error, lc.sap, meta)
-    index = np.floor((lc.time - lc.time[0]) / TESS_BIN_WIDTH + 0.5).astype(np.int64)
+    index = np.floor((lc.time - lc.time[0]) / width + 0.5).astype(np.int64)
     starts = np.flatnonzero(np.r_[True, np.diff(index) > 0])
     counts = np.diff(np.r_[starts, n])
     first = np.repeat(starts, counts)

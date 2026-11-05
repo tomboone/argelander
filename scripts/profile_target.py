@@ -4,7 +4,8 @@ It reads the Target and its `ok` Light Curve files with the query `analysis/work
 `run_once` uses, but in a READ ONLY transaction, and reads the curves from the Cache. Then:
 
   pass 1: `pipeline.analyze` with a timer around every step, and around every BLS `power`
-          call (coarse, refine, Gaia period, with each one's grid size); then the worker's
+          call (coarse, refine, TESS's re-binned refine for the plot, Gaia period, with each
+          one's grid size); then the worker's
           hand-off without its database writes (`propose.elements`, then `render_all`);
   pass 2: the same under cProfile (skip it with --no-cprofile).
 
@@ -125,7 +126,10 @@ class TimedBLS(periodogram.BoxLeastSquares):
                 elif current_bls["coarse"] < 3:
                     bls_pass = "fine (single pass)"
                 else:
-                    bls_pass = "coarse" if current_bls["calls"] == 1 else "refine"
+                    # TESS's coarse pass and its periodogram read a 30-minute re-bin (NEU-2191).
+                    bls_pass = {1: "coarse", 2: "refine"}.get(
+                        current_bls["calls"], "refine (re-binned, for the plot)"
+                    )
                 label = current_bls["label"]
             else:  # eclipse_duration, from the hand-off
                 bls_pass, label = "eclipse_duration", "-"
@@ -282,7 +286,7 @@ def report(info: dict[str, Any], phases: dict[str, Any]) -> str:
         f"pipeline {info['pipeline_version']}",
         f"analyze Jobs claimed at start / after pass 1 (the analyzer running alongside): "
         f"{info['analyze_jobs_claimed_at_start']} / {info.get('analyze_jobs_claimed_after')}",
-        f"stored 0.2.0 Analysis took: {info['stored_analysis_seconds']} s",
+        f"stored {info['pipeline_version']} Analysis took: {info['stored_analysis_seconds']} s",
         "files: " + json.dumps(info["files"]),
         "points after clean+bin: " + json.dumps(phases["_points"]),
         "",
