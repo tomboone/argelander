@@ -5,16 +5,23 @@ random times of night over several observing seasons, so the searches face real 
 """
 
 import dataclasses
+from collections.abc import Callable
+from functools import partial
 
 import numpy as np
 import pytest
 from astropy.timeseries import LombScargle
 
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.clean import MIN_POINTS, clean
 from argelander.analysis.periodogram import (
+    BLS_COARSE_BIN_WIDTH,
     BLS_COARSEN,
+    BLS_DURATIONS,
     BLS_MIN_DUTY_CYCLE,
+    _bls,
     _bls_grid,
+    _power,
     box_least_squares,
     lomb_scargle,
     periodograms,
@@ -119,23 +126,52 @@ def detached_binary(period: float, width: float, n: int, seasons: int) -> LightC
 DETACHED_BINARIES = [(1.3713, 0.08, 600, 5), (2.7183, 0.02, 800, 6)]
 
 
-def test_two_stage_bls_finds_a_minimum_duty_cycle_eclipse() -> None:
-    """The case the coarse pass dilutes most: its true peak ranks 108th there, not first."""
-    period = 3.7
-    bls = box_least_squares(detached_binary(period, BLS_MIN_DUTY_CYCLE, 600, seasons=6))
+def tess_binary(period: float, width: float) -> LightCurve:
+    """A `width`-day primary eclipse 0.002 deep and a secondary a fifth as deep, in three
+    2-minute TESS sectors, the third 73 days after the second, cleaned and binned to 10
+    minutes as `pipeline.analyze` hands it to the period search."""
+    rng = np.random.default_rng(2191)
+    time = np.concatenate(
+        [2459000.0 + start + np.arange(0.0, 27.0, 120 / 86400) for start in (0, 27, 127)]
+    )
+    phase = (time / period) % 1.0
+    flux = 1.0 + rng.normal(0, 0.003, time.size)
+    flux[np.abs(phase - 0.3) < width / period / 2] -= 0.002
+    flux[np.abs(phase - 0.8) < width / period / 2] -= 0.0004
+    tess = dataclasses.replace(light_curve(time, flux, 0.003, value_kind="flux"), survey="tess")
+    return bin_tess(clean(tess))
+
+
+# (period, curve): the sparse surveys' and TESS's minimum-duty-cycle eclipses. TESS's second
+# is the narrowest box, under one 30-minute bin of the coarse pass's re-binned curve.
+MINIMUM_DUTY_CYCLE_ECLIPSES = [
+    pytest.param(3.7, partial(detached_binary, 3.7, BLS_MIN_DUTY_CYCLE, 600, 6), id="sparse"),
+    pytest.param(3.7, partial(tess_binary, 3.7, 3.7 * BLS_MIN_DUTY_CYCLE), id="tess"),
+    pytest.param(0.8137, partial(tess_binary, 0.8137, BLS_DURATIONS[0]), id="tess-0.01d"),
+]
+
+
+@pytest.mark.parametrize(("period", "curve"), MINIMUM_DUTY_CYCLE_ECLIPSES)
+def test_two_stage_bls_finds_a_minimum_duty_cycle_eclipse(
+    period: float, curve: Callable[[], LightCurve]
+) -> None:
+    """The case the coarse pass dilutes most: the sparse curve's true peak ranks 108th there."""
+    bls = box_least_squares(curve())
 
     assert bls.best is not None
     assert relative_error(bls.best.period, period) < TOLERANCE
 
 
 @pytest.mark.parametrize(
-    ("period", "width", "n", "seasons"),
-    [*DETACHED_BINARIES, (3.7, BLS_MIN_DUTY_CYCLE, 600, 6)],
+    "curve",
+    [
+        *(partial(detached_binary, *binary) for binary in DETACHED_BINARIES),
+        *(param.values[1] for param in MINIMUM_DUTY_CYCLE_ECLIPSES),
+    ],
+    ids=["sparse-1.37d", "sparse-2.72d", "sparse-3.7d", "tess-3.7d", "tess-0.81d"],
 )
-def test_two_stage_bls_matches_the_single_pass(
-    period: float, width: float, n: int, seasons: int
-) -> None:
-    lc = detached_binary(period, width, n, seasons)
+def test_two_stage_bls_matches_the_single_pass(curve: Callable[[], LightCurve]) -> None:
+    lc = curve()
 
     two_stage = box_least_squares(lc)
     single = box_least_squares(lc, two_stage=False)
@@ -146,6 +182,39 @@ def test_two_stage_bls_matches_the_single_pass(
         fine, 1.0 / single.best.period
     )
     assert abs(steps_apart) <= 1
+
+
+@pytest.mark.parametrize(("period", "width"), [(3.7, 3.7 * BLS_MIN_DUTY_CYCLE), (0.8137, 0.01)])
+def test_tess_coarse_pass_on_30_minute_bins_keeps_the_best_period(
+    period: float, width: float
+) -> None:
+    """The same curve searched as TESS, coarse pass re-binned, and as any other survey."""
+    lc = tess_binary(period, width)
+
+    rebinned = box_least_squares(lc)
+    unbinned = box_least_squares(dataclasses.replace(lc, survey="ztf"))
+
+    assert rebinned.best is not None and unbinned.best is not None
+    assert rebinned.best.period == unbinned.best.period
+    assert relative_error(rebinned.best.period, period) < TOLERANCE
+
+
+def test_tess_periodogram_is_the_rebinned_curves_and_its_peaks_the_10_minute_curves() -> None:
+    """The plot draws one curve's powers, so no step at a refine window's edge."""
+    lc = tess_binary(3.7, 3.7 * BLS_MIN_DUTY_CYCLE)
+    coarse_lc = bin_tess(lc, width=BLS_COARSE_BIN_WIDTH)
+
+    bls = box_least_squares(lc, 0.5)
+
+    assert coarse_lc.time.size < lc.time.size / 2.5
+    assert bls.n_points == lc.time.size
+    np.testing.assert_allclose(bls.power, _power(_bls(coarse_lc), bls.frequency))
+    peaks = np.array([1.0 / p.period for p in bls.peaks])
+    assert np.all(np.isin(peaks, _bls_grid(lc.time)))
+    assert np.all(np.isin(peaks, bls.frequency))
+    np.testing.assert_allclose([p.power for p in bls.peaks], _power(_bls(lc), peaks))
+    assert bls.gaia is not None
+    assert bls.gaia.power == pytest.approx(float(_bls(lc).power([0.5], BLS_DURATIONS).power[0]))
 
 
 def test_two_stage_bls_returns_the_coarse_grid_with_refined_peaks() -> None:
