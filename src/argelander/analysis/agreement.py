@@ -45,7 +45,9 @@ TOLERANCE = 1e-3  # 0.1 %
 GAIA_BASELINE = 1038.0
 # Phase dispersion above which a band's best fold explains too little to be a period. Set on
 # the prototype fixtures (NEU-1711): every positive's voting band folds at 0.71 or less, every
-# constant star's ZTF bands at 0.82 or more.
+# constant star's ZTF bands at 0.82 or more. That no longer holds for the constants: since
+# NEU-1839's coarse-to-fine BLS, Gaia DR3 1435683567052954368's ZTF g band settles on the 1-day
+# alias of a BLS peak at 0.60 and votes. It votes alone, so the two-source rule keeps it out.
 MAX_SCATTER = 0.75
 SOURCES = ("ztf_g", "ztf_r", "asassn", "tess", "gaia_published")
 # The survey each source's photometry comes from, as in `LightCurve.survey`.

@@ -595,6 +595,16 @@ Order of operations in `analysis/worker.py` for one Target:
    a clean ZTF band among their agreeing sources. Rejected: keeping the Agreement and having the classifier discount it. The
    Analysis would still carry a period nothing attributes to the Target, and every reader
    of `analysis.agreement` would need to repeat the check.
+
+   *Note 2026-11-05:* the 0.75 scatter cut no longer separates every constant band from
+   every positive's voting band. Since NEU-1839's coarse-to-fine BLS (2026-10-21), the ZTF g
+   band of the constant Gaia DR3 1435683567052954368 settles on 0.1128 d, the 1-day alias of
+   its own BLS peak at 0.1014 d. That fold scored 0.62 at NEU-1839 and scores 0.60
+   now (NEU-1796 onward), so the band votes. Before NEU-1839 its best fold scored 0.87 (0.051 d) and it did not. It
+   votes alone, so the star reaches no Agreement and the gate still passes; the two-source
+   rule is what holds. The band's result is the same with or without ASAS-SN in the
+   fixtures. The highest-scatter voting band of a positive is still 0.705 (ZTF r of
+   ASASSN-V J170333.89+604850.1). The threshold is unchanged here.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
