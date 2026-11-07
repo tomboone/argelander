@@ -23,11 +23,14 @@ from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from typer.testing import CliRunner
 
+from argelander import PIPELINE_VERSION
 from argelander.analysis import worker
+from argelander.analysis.bin import bin_tess
 from argelander.analysis.model import Analysis, Peak, PeriodogramResult, Variability
 from argelander.analysis.pipeline import analyze
 from argelander.analysis.worker import analysis_columns, run_once
 from argelander.catalog.gaia import GaiaRecord, records_from_tables
+from argelander.classify import replot
 from argelander.cli import app
 from argelander.config import get_settings
 from argelander.db import queue
@@ -53,6 +56,9 @@ from argelander.selector import gaia_columns
 FIXTURES = Path(__file__).parent / "fixtures"
 GAIA_SOURCE_ID = 1439840098963073152  # V0379 Dra
 PERIOD = 0.35762  # VSX's, which ZTF confirms
+# The version this code stamps, and one a later bump would stamp, for the rerun tests.
+CURRENT = PIPELINE_VERSION
+NEXT = f"{PIPELINE_VERSION}+next"
 BANDS = {Survey.TESS: ["T"], Survey.GAIA: ["G", "BP", "RP"]}
 
 _ids = count(1)
@@ -225,7 +231,7 @@ def test_an_analyze_job_writes_one_analyses_row_and_its_proposal(
         ids = {f.survey: f.id for f in session.scalars(select(LightCurveFile))}
 
     assert (job.status, target.status) == (JobStatus.DONE, TargetStatus.PROPOSED)
-    assert row.pipeline_version == "0.1.0"
+    assert row.pipeline_version == CURRENT
     assert row.started_at is not None and row.finished_at is not None
     assert row.started_at <= row.finished_at
 
@@ -272,7 +278,7 @@ def test_an_analyze_job_writes_one_analyses_row_and_its_proposal(
     # The hand-off drew every plot, recorded relative to PLOTS_DIR.
     assert row.plots is not None
     assert {"periodogram", "cmd", "combined", "submission", "phase-tess-T"} <= set(row.plots)
-    assert row.plots["submission"] == f"{GAIA_SOURCE_ID}/0.1.0/submission.png"
+    assert row.plots["submission"] == f"{GAIA_SOURCE_ID}/{CURRENT}/submission.png"
     assert all((plots_dir / path).stat().st_size > 0 for path in row.plots.values())
 
     # The Proposal: the RR Lyrae's type at the agreed period, with its range from TESS, which
@@ -330,7 +336,7 @@ def test_a_rerun_at_the_same_pipeline_version_overwrites_the_row(
         curves: list[LightCurve], record: GaiaRecord | None, *, target_id: int
     ) -> tuple[Analysis, list[LightCurve]]:
         found, cleaned = replayed(curves, record, target_id=target_id)
-        return dataclasses.replace(found, pipeline_version="0.2.0"), cleaned
+        return dataclasses.replace(found, pipeline_version=NEXT), cleaned
 
     monkeypatch.setattr(worker, "analyze", bumped)
     with sessions.begin() as session:
@@ -339,7 +345,7 @@ def test_a_rerun_at_the_same_pipeline_version_overwrites_the_row(
 
     with sessions() as session:
         versions = sorted(row.pipeline_version for row in _rows(session, target_id))
-    assert versions == ["0.1.0", "0.2.0"]
+    assert versions == [CURRENT, NEXT]
 
 
 def test_a_new_pipeline_version_supersedes_the_queued_proposal(
@@ -352,26 +358,26 @@ def test_a_new_pipeline_version_supersedes_the_queued_proposal(
     target_id = _queued_target(sessions, record)
     run_once(sessions, cache_dir, plots_dir)
 
-    _analyzed_as(monkeypatch, pipeline_version="0.2.0")
+    _analyzed_as(monkeypatch, pipeline_version=NEXT)
     _rerun(sessions, cache_dir, plots_dir, target_id)
 
     with sessions() as session:
         versions = sorted(row.pipeline_version for row in _rows(session, target_id))
     old, new = _proposals(sessions, target_id)
-    assert versions == ["0.1.0", "0.2.0"]
+    assert versions == [CURRENT, NEXT]
     assert (old.pipeline_version, old.status, old.superseded_by) == (
-        "0.1.0",
+        CURRENT,
         ProposalStatus.SUPERSEDED,
         new.id,
     )
     assert (new.pipeline_version, new.status, new.superseded_by) == (
-        "0.2.0",
+        NEXT,
         ProposalStatus.QUEUED,
         None,
     )
     # Each version draws into its own directory, so the old plots stay for comparison.
-    assert (plots_dir / str(GAIA_SOURCE_ID) / "0.1.0" / "submission.png").exists()
-    assert (plots_dir / str(GAIA_SOURCE_ID) / "0.2.0" / "submission.png").exists()
+    assert (plots_dir / str(GAIA_SOURCE_ID) / CURRENT / "submission.png").exists()
+    assert (plots_dir / str(GAIA_SOURCE_ID) / NEXT / "submission.png").exists()
 
 
 def test_a_rerun_at_the_same_pipeline_version_replaces_its_queued_proposal_in_place(
@@ -405,7 +411,7 @@ def test_a_reviewed_proposal_is_untouched_by_a_rerun(
         reviewed.status = status
 
     _rerun(sessions, cache_dir, plots_dir, target_id)  # the same version, the same Analysis
-    _analyzed_as(monkeypatch, pipeline_version="0.2.0")
+    _analyzed_as(monkeypatch, pipeline_version=NEXT)
     _rerun(sessions, cache_dir, plots_dir, target_id)
 
     kept, same_version, new = _proposals(sessions, target_id)
@@ -418,7 +424,7 @@ def test_a_reviewed_proposal_is_untouched_by_a_rerun(
         ProposalStatus.SUPERSEDED,
         new.id,
     )
-    assert (new.pipeline_version, new.status) == ("0.2.0", ProposalStatus.QUEUED)
+    assert (new.pipeline_version, new.status) == (NEXT, ProposalStatus.QUEUED)
 
 
 def test_a_target_without_agreement_gets_a_low_confidence_var_proposal(
@@ -470,7 +476,13 @@ def test_classify_replot_rewrites_the_plots_and_analyses_plots(
     submission = plots_dir / drawn["submission"]
     submission.unlink()
     (proposal,) = _proposals(sessions, target_id)
+    redrawn: list[LightCurve] = []
 
+    def binned(lc: LightCurve) -> LightCurve:
+        redrawn.append(bin_tess(lc))
+        return redrawn[-1]
+
+    monkeypatch.setattr(replot, "bin_tess", binned)
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("CACHE_DIR", str(cache_dir))
     monkeypatch.setenv("PLOTS_DIR", str(plots_dir))
@@ -487,6 +499,8 @@ def test_classify_replot_rewrites_the_plots_and_analyses_plots(
         (again,) = _rows(session, target_id)
     assert again.plots == drawn
     assert submission.stat().st_size > 0
+    # TESS is drawn binned, as the analysis searched it.
+    assert [lc.survey for lc in redrawn if "bin" in lc.meta] == ["tess"]
     # Nothing was classified again.
     (unchanged,) = _proposals(sessions, target_id)
     assert (unchanged.id, unchanged.created_at) == (proposal.id, proposal.created_at)

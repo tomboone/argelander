@@ -98,9 +98,9 @@ def test_manifest_spans_the_rule_types_and_every_kind_of_negative() -> None:
     assert len({s["star"] for s in STARS}) == len(STARS)
 
 
-@pytest.mark.parametrize("survey", ["ztf", "tess", "gaia"])
+@pytest.mark.parametrize("survey", ["ztf", "tess", "gaia", "asassn"])
 def test_every_star_has_been_fetched_from(survey: str) -> None:
-    """Only ASAS-SN may still be pending (NEU-1796); the other three were fetched."""
+    """Every survey was fetched for every star; none is still pending (NEU-1796)."""
     assert [s["star"] for s in STARS if s["coverage"][survey] == build_fixtures.PENDING] == []
 
 

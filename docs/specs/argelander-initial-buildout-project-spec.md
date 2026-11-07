@@ -365,9 +365,21 @@ deleted in the same job that extracted the light curve.
   `get_block_servers` names. The target nearest the position wins. Kept points have
   `quality == "G"` and `mag_err` below 99 (non-detections are upper limits with
   `mag_err` 99.99); the band comes from the camera by the client's camera lists. An empty
-  server list (maintenance) is a transient failure. The service was down while this was
-  built, so the offline test replays a constructed response in the documented schema;
-  recording a real one, the first live fetch and the §14 V-or-g note follow in NEU-1764.
+  server list (maintenance) is a transient failure. The offline test replays a recorded
+  Sky Patrol response (NEU-1764).
+
+  *Amended 2026-11-02 (NEU-1764):* Sky Patrol's `jd` is a UTC JD with no light-travel
+  correction, not the HJD this contract and §6 step 2 assumed. For 257 V images of
+  CSS_J173907.6+550053, `jd` differs from the HJD the ASAS-SN Variable Stars Database
+  (an older pipeline) gives for the same image by the heliocentric correction, −85 to
+  +104 s, and agrees with it to within 11 s once that correction is applied; read as an
+  HJD it is up to 114 s off. The 11 s left is −0.5 s − 8 % of the correction with 2.6 s of
+  scatter, a scale one of the two pipelines applies and neither documents. It bounds how
+  well an ASAS-SN time is known: about the 0.0001-day (8.6 s) step of the finest epoch
+  VSX accepts, which it justifies only for very short periods with good photometry. The fetcher converts it as a JD from the geocentre, and
+  `meta["time_system"]` is `"JD UTC"`. The real response matched the documented schema;
+  it also carries a pandas index column, `fwhm` as a string and a third quality grade,
+  `"U"`, none of which the fetcher reads.
 
 Per-archive concurrency is a local semaphore in `fetch/base.py` (defaults: IRSA 2, MAST 2,
 Gaia 1, ASAS-SN 2) with exponential backoff on HTTP 429/5xx and a per-Target
@@ -434,6 +446,11 @@ Order of operations in `analysis/worker.py` for one Target:
    Almanac's low-precision Sun, not from astropy. TESS is checked against the BTJD
    definition and Gaia against IAU 2006 Resolution B3. All agree within 1 s; ZTF and
    ASAS-SN agree within 0.05 s.
+
+   *Amended 2026-11-02 (NEU-1764):* ASAS-SN Sky Patrol reports a UTC JD, not an HJD
+   (§5.1), so it goes to BJD_TDB the way ZTF's MJD does, from the geocentre. The τ Ceti
+   reference now checks it with the JD directly, and the Almanac-built HJD checks
+   `bjd_tdb_to_hjd`, the conversion VSX's epoch still needs.
 3. **Clean** (`clean.py`): drop flagged points, sigma-clip at 5σ around a running median,
    require ≥ 30 points per band to proceed.
 
@@ -444,6 +461,29 @@ Order of operations in `analysis/worker.py` for one Target:
    their survey flags alone, because their neighbours are too far apart in phase for a
    median to stand for the star's level, and every point in an eclipse or at a pulsation's
    extreme would be clipped as an outlier.
+
+   *Amended 2026-11-03 (NEU-2187):* after cleaning, TESS is binned to 10 minutes
+   (`analysis/bin.py`, `TESS_BIN_WIDTH`) and every later step reads the binned curve: the
+   periodograms, alias tests, blend checks, Agreement, shape, variability, the Proposal's
+   range and epoch, and the plots, `classify --replot` included. Cleaning stays at native
+   cadence because its running median needs neighbours within ±0.005 d. A Draco Target in
+   TESS's continuous viewing zone has up to 254,000 points, and on the mini the analyzer
+   cost about 85 s a Target plus 1.8 s per 1,000 TESS points (7 minutes on average for
+   Dra-13-16 at 0.1.0). Bins are a fixed grid starting half a bin before the first point,
+   so a cadence of exactly 10 minutes puts each point mid-bin rather than on an edge. Each
+   non-empty bin becomes its points' mean time, mean value and mean `sap`, with error
+   `sqrt(sum(error²)) / n`; a one-point bin passes through unchanged, so full-frame curves
+   are left nearly as they are, and empty bins produce nothing. The mean rather than the
+   median, because cleaning has already clipped the outliers. 10 minutes because the
+   shortest period searched is 0.05 d: the bin is 14 % of that cycle, so a sinusoid there
+   keeps about 97 % of its amplitude, and it is narrower than BLS's narrowest box (0.01 d).
+   ZTF, ASAS-SN and Gaia are not binned. `meta["bin"]` records the width and the input
+   count; `analyses.inputs` still records the Cache file's count. Pipeline Version 0.2.0.
+   Against the dev Cache's 60 Draco Targets (TESS 21k–50k points), binned and unbinned
+   gave the same Agreement for all 60: the same period for the 7 that agree, none for the
+   other 53. The TESS band's own best period moved for 6, each a 30–77 d peak (between
+   29.4 and 76.6 d either way) in a Target with no Agreement, longer than a sector, where
+   TESS's residual systematics, not the star, set the peak.
 4. **Periodogram** (`periodogram.py`): astropy `LombScargle` per band over 0.05–100 d
    (grid oversampled ×10), plus astropy `BoxLeastSquares` over 0.1–30 d for eclipsers.
    Record the top five peaks with power and false-alarm probability per band. Gaia's
@@ -475,6 +515,29 @@ Order of operations in `analysis/worker.py` for one Target:
    box nears the period itself. CSS_J173907.6+550053's TESS best BLS peak moved from
    0.1001986 d to 0.1002092 d this way, a noise peak for an RRab.
    `box_least_squares(..., two_stage=False)` keeps the single pass for comparison.
+
+   *Amended 2026-11-05 (NEU-2191):* TESS's coarse pass reads its curve re-binned from 10 to
+   30 minutes (`BLS_COARSE_BIN_WIDTH`, by `bin_tess` with a wider `width`), because a BLS
+   pass costs one sweep over the points per trial period, and on the mini TESS's coarse pass
+   was 174 s of a continuous-viewing-zone Target's 325 s (NEU-2190, Target 295: 94,514
+   binned points, 74,391 coarse periods). A coarse step already lets a 0.01 d eclipse sit up
+   to 0.04 d off a trial period, and a 30-minute bin adds at most 0.010 d. Both grids still
+   come from the 10-minute curve's times. The refine windows are the 30-minute curve's top
+   500 coarse peaks, searched on the 10-minute curve, and TESS's reported peaks are those
+   windows' own local maxima there (a window's edge is never a peak); the Gaia period is
+   scored on the 10-minute curve, and every other step reads it as before. The returned
+   periodogram, which the plot draws, is the 30-minute curve's throughout, its refine
+   windows scored on it too: the two curves' powers differ off the peaks, by about 1.5× in
+   median on a synthetic eclipsing curve (a real eclipse leaks more power into off-peak
+   trials through 30-minute bins; pure noise shows no difference), so one curve's windows
+   merged into the other's coarse grid would draw a step at every window edge. That extra
+   scoring costs about a third of the 10-minute refine. So for TESS's BLS alone, the peak
+   and Gaia powers in the evidence page's table are the 10-minute curve's and can stand
+   above the plotted curve at the same period, whose tallest peak need not be the reported
+   best. On synthetic TESS curves (three
+   2-minute sectors, a 0.002-deep eclipse in 0.003 noise) the best period is unchanged for
+   a 1 % duty-cycle eclipse at 3.7 d and a 0.01 d eclipse at 0.81 d, which is narrower than
+   one 30-minute bin. Pipeline Version 0.3.0.
 5. **Aliases** (`aliases.py`): for each candidate test P, 2P, P/2 and the 1 d, 0.5 d and
    sidereal-day (0.99727 d) aliases; for TESS also 13.7 d orbital systematics. Prefer the
    candidate whose phase-folded scatter is lowest and record the ranking.
@@ -521,6 +584,27 @@ Order of operations in `analysis/worker.py` for one Target:
    sources). ZTF r was measured (largest offset 0.037 mag); ZTF g's only non-reference oid
    holds 8 points in the trimmed fixture and is unmeasured, so g counts in full without
    having been judged. It is out of `KNOWN_FAILURES`; the gate passes all 27 stars.
+
+   *Amended 2026-11-02 (NEU-1796):* an Agreement needs at least one clean source among the
+   sources at its period. Four contaminated sources weigh 2.0, as two clean ones do, and
+   with ASAS-SN in the fixtures both blends reached Agreement that way: ZTF g, ZTF r,
+   ASAS-SN and TESS, every one flagged, all at the eclipsing neighbour's period. Every one of
+   them may be seeing the same neighbour, so the period cannot be credited to the Target,
+   the reasoning `variability` already applies when every survey is contaminated. On the
+   fixtures the rule changes only the two blends: every positive and both alias traps have
+   a clean ZTF band among their agreeing sources. Rejected: keeping the Agreement and having the classifier discount it. The
+   Analysis would still carry a period nothing attributes to the Target, and every reader
+   of `analysis.agreement` would need to repeat the check.
+
+   *Note 2026-11-05:* the 0.75 scatter cut no longer separates every constant band from
+   every positive's voting band. Since NEU-1839's coarse-to-fine BLS (2026-10-21), the ZTF g
+   band of the constant Gaia DR3 1435683567052954368 settles on 0.1128 d, the 1-day alias of
+   its own BLS peak at 0.1014 d. That fold scored 0.62 at NEU-1839 and scores 0.60
+   now (NEU-1796 onward), so the band votes. Before NEU-1839 its best fold scored 0.87 (0.051 d) and it did not. It
+   votes alone, so the star reaches no Agreement and the gate still passes; the two-source
+   rule is what holds. The band's result is the same with or without ASAS-SN in the
+   fixtures. The highest-scatter voting band of a positive is still 0.705 (ZTF r of
+   ASASSN-V J170333.89+604850.1). The threshold is unchanged here.
 7. **Blend** (`blend.py`): per survey, using the contamination radii in §5.1. Flag
    `blend_suspect` (ZTF and Gaia) when a neighbour within 3″ is brighter than G + 2, or
    when ZTF oid offsets exceeded 0.05 mag; flag `asassn_contaminated` when a neighbour
@@ -613,6 +697,16 @@ Order of operations in `analysis/worker.py` for one Target:
    ratio come from this fold, not from BLS as NEU-1720 first said: BLS fits a single box, so
    it has no secondary depth, and a box's duration means little on an EW star's continuous
    curve.
+
+   *Amended 2026-11-02 (NEU-1796):* `variability` does not measure ASAS-SN. Its reported
+   errors understate its scatter: on the three constant stars in the fixtures the robust
+   scatter (1.4826 × MAD) is 1.8–3.2 times the median `mag_err` in V and g, against 0.95–1.3
+   times for ZTF. Measured against them, the two constants at G 13.7 and 14.0 spread 2.8–3.6
+   times their errors and both scored `L`. ZTF covers the same baseline and depth, so the Target
+   is still measured wherever it has a clean ZTF band. Rejected: a noise floor or a scale
+   factor on ASAS-SN's errors. The understatement falls from 3.2 to 1.8 times between G 14
+   and 15, so a floor fitted to the bright constants leaves the faint one unchanged, and a
+   factor fitted to three stars would be in-sample.
 9. Write the `analyses` row; hand off to `classify.propose` and `plots`.
 
    *Amended 2026-10-21 (NEU-1718):* `argelander analyze-worker` takes one analyze Job a
@@ -701,6 +795,12 @@ constants score CST. The alias traps reach Agreement at their true periods and a
 there as their VSX type, so they are not held to the "no type above 0.5" rule meant for stars
 with no period.
 
+*Amended 2026-11-02 (NEU-1796):* with ASAS-SN in the fixtures, the same result needs the two
+changes in §6: blends again reach no Agreement, because every source that agreed was
+contaminated (step 6), and constants are measured without ASAS-SN's understated errors
+(step 8). Without them the two blends scored DSCT and EW at Confidence 1.0, and the
+constants at G 13.7 and 14.0 scored `L`, at 1.0 and 0.2.
+
 **Magnitude range** (VSX FAQ): `mag_max` and `mag_min` are the mean magnitudes at
 maximum and minimum read from the binned phase curve of the chosen band after outlier
 rejection, never the brightest and faintest single points. For types whose mean level or
@@ -718,7 +818,8 @@ dark-spotted ROT stars; SR, L and M carry no epoch unless Agreement is strong.
 The type is the best-scoring one when it is in the initial set or `CST`, else `VAR`; a
 periodic type without Agreement is `VAR` too, at the Confidence of the type that scored best,
 so its evidence shows the Agreement rule's reason. `CST` and `L` need no Agreement. The range
-and the epoch come from the range band: the most points among bands with a VSX passband,
+and the epoch come from the range band (split in two by the NEU-2185 amendment below): the
+most points among bands with a VSX passband,
 magnitude bands before TESS flux and Gaia's epochs last, since VSX takes a calibrated range in
 one band over a mean and an amplitude. Only when TESS is all there is does the Proposal set
 `min_is_amplitude`, with Gaia's mean G as `mag_max` and the TESS amplitude in magnitudes as
@@ -736,6 +837,21 @@ boxes stop at two hours), for RRAB, RRC, DCEP and HADS `Analysis.shape.rise`, th
 The binned curve's extreme bins were tried for the rise first and read V0364 Dra's at 8 %: a
 bin is 4 % of the cycle at 25 bins. On the fixtures the EA eclipses come out at 5.6–10.5 % and
 the RRAB rises at 15–16 %.
+
+*Amended 2026-11-03 (NEU-2185):* the range and the epoch come from two bands, since VSX wants
+the range preferably in V (§9) and ASAS-SN V, which stopped in 2018, has about half the points
+of ASAS-SN g and fewer than ZTF. The **range band** (`propose.range_curve`) is ASAS-SN V when it
+has enough points (`clean.sufficient`) and ASAS-SN is not contaminated: a neighbour inside its
+17" aperture adds light to every point, so a contaminated V range is worse than a clean one in
+another band. Otherwise it is the epoch band. The **epoch band** (`propose.epoch_curve`) is the
+NEU-1721 rule, the most points among bands with a VSX passband, magnitude bands before TESS
+flux and Gaia last; the epoch and EA's eclipse duration are read from it, since more points and
+a later baseline pin the fold down better. `band`, `mag_max` and `mag_min` are the range band's.
+A tie in points, which the trimmed fixtures make the rule, resolves by `propose.BAND_ORDER`
+(ZTF g, r, i, ASAS-SN g, V, TESS, Gaia) rather than list order. On the fixtures V0364 Dra's
+range is now in V. Rejected: reading the epoch from V too (fewer points, 8 or more years back);
+converting g to V with a colour term (it adds its own error, and VSX accepts a calibrated range
+in a named band).
 
 Thresholds and ranges live in `classify/types.py` and are part of what
 `PIPELINE_VERSION` stamps. Verdict feedback (section 9.3) changes rules by hand; this
@@ -761,7 +877,8 @@ Paths are recorded in `analyses.plots`. Plots are disposable and regenerated by
 `argelander classify --replot`.
 
 *Amended 2026-10-21 (NEU-1721):* `submission.png` leads with the Proposal's range band
-(§7), so the plot shows the band whose range goes into the form. `argelander classify
+(§7), so the plot shows the band whose range goes into the form. Since NEU-2185 that is ASAS-SN V
+when it is clean, not the band the epoch was read from. `argelander classify
 --replot [--target <VSX name>]` (`classify/replot.py`) redraws every Analysis at the current
 Pipeline Version that has a Proposal, at its newest Proposal's type, period and epoch, and
 rewrites `analyses.plots`; no rule runs and no Analysis or Proposal row changes. Since
@@ -1095,6 +1212,15 @@ from the grilling session:
   the pipeline is known to fail is a strict xfail with its reason, so it shows in the run
   and the entry has to go when it starts passing. The stars run in parallel because BLS over
   ZTF's baseline is the slow step (a few seconds a band since NEU-1839).
+
+  *Amended 2026-11-02 (NEU-1796):* the fixtures now carry ASAS-SN V and g for all 27 stars
+  (≤ 500 points a band, 0.76 MB of the 2.87 MB in `tests/fixtures/`), and no manifest entry is
+  `pending`. The gate still passes all 27. ASAS-SN votes in the Agreement of 19 of the 20
+  positives (not ASASSN-V J183551.48+614330.1, which agrees from ZTF g and r), and in both
+  alias traps' Agreements at their true periods. `asassn_contaminated` fires on both blends
+  and on one positive, 1SWASP J191601.56+560055.3, whose Agreement keeps three clean
+  sources (ZTF g, ZTF r and Gaia's period). No positive's Agreement moved off its published
+  period.
 - GitHub Actions on push and PR: `uv sync`, `ruff check`, `ruff format --check`, `ty check`,
   `pytest -m "not live"`, `alembic` single-head check, `docker build`. Node is not involved.
   CI also runs on PRs targeting `updates/dependencies`, so Dependabot PRs are checked.
@@ -1274,6 +1400,43 @@ Per star, in kB (total = new TESS + ZTF and Gaia from the table above):
 | Gaia DR3 1434111643382583936 | 13.96 | 15,931 | 7,716 | 7,828 | QLP |
 | Gaia DR3 1435683567052954368 | 15.01 | 18,212 | 8,781 | 8,790 | TESScut |
 
+*Re-measured 2026-11-02 (NEU-1796)*, adding ASAS-SN with
+`python scripts/build_fixtures.py --measure --survey asassn`; the other surveys are carried
+over from the tables above. ASAS-SN takes 21–80 kB a star (median 32 kB, mean 42 kB), V and
+g together, 0.6 % of a star. The per-star figures barely move: median 7.9 MB, mean 6.8 MB,
+largest 9.0 MB. The storage projections above barely move: 34–136 GB for the first year
+(34–135 GB at 6.7 MB a star) and about 1.1 TB for the whole backlog.
+
+| Star | G | asassn kB | Total kB |
+| --- | ---: | ---: | ---: |
+| NSVS 2887379 | 13.91 | 33 | 7,535 |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 31 | 8,804 |
+| LINEAR 20427289 | 15.34 | 29 | 6,436 |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 76 | 4,903 |
+| DW Dra | 13.04 | 63 | 8,515 |
+| T-Dra0-09947 | 15.08 | 32 | 5,226 |
+| 1SWASP J191601.56+560055.3 | 13.60 | 80 | 6,461 |
+| CSS_J173907.6+550053 | 14.69 | 30 | 8,512 |
+| V0364 Dra | 14.85 | 29 | 4,506 |
+| V0502 Dra | 14.92 | 31 | 8,124 |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 31 | 8,786 |
+| V0379 Dra | 13.33 | 61 | 7,367 |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 25 | 8,450 |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 33 | 8,348 |
+| V0553 Dra | 13.78 | 52 | 8,646 |
+| KO Cep | 13.06 | 21 | 2,473 |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 63 | 7,284 |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 24 | 8,407 |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 27 | 8,700 |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 63 | 8,952 |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 30 | 3,026 |
+| CSS_J181701.4+514940 | 14.41 | 40 | 5,243 |
+| CSS_J160212.7+530724 | 15.70 | 29 | 1,080 |
+| CSS_J172350.6+504650 | 14.48 | 28 | 2,401 |
+| Gaia DR3 1435854639894380800 | 13.66 | 33 | 8,060 |
+| Gaia DR3 1434111643382583936 | 13.96 | 58 | 7,886 |
+| Gaia DR3 1435683567052954368 | 15.01 | 74 | 8,864 |
+
 - Whether ASAS-SN g or V is more useful at 13–16 mag.
 - The Draco VAR Target count at 13–16 mag (one VizieR query before milestone 4).
 
@@ -1297,3 +1460,53 @@ short-timescale variables, which are not in `vari_classifier_result`. So for the
 Slice the hypothesis the analyzer tests first is the short-timescale frequency, the least
 trusted of Gaia's periods (§5.1). 258 Targets have a Gaia neighbour within 20″, and 426 a 2MASS
 designation. A second run added no Targets and no Jobs.
+
+*Resolved 2026-11-02 (NEU-1764)*, from live Sky Patrol fetches of all 27 fixture stars
+(G 13.0–15.7) with the fetcher, after its cleaning:
+
+**ASAS-SN g or V.** Neither on its own: the fetcher keeps both as separate Light Curves, and
+each carries a period the other cannot reach. g is the stronger band. It has about twice
+the points (median 662 against 323, ratio 2.2 per star), the longer baseline (7.1–7.7 years,
+September 2017 to June 2025, against 3.9–6.5 years for V) and is the only band ASAS-SN
+still takes. V ended with the V cameras in October–November 2018 but reaches back to
+2012–2014, so it adds four to six years before g starts; the two overlap only from late
+2017 to late 2018. At 15 mag their precision is the same: the median reported error of the
+ten stars at 14.7–15.3 in the band is 0.022 in V and 0.017 in g, and the constant Gaia DR3
+1435683567052954368 (G 15.0) has a robust scatter (1.4826 × MAD) of 0.066 in V and 0.058 in g,
+against 0.018–0.027 in both for the two constant stars at G 13.7–14.0. A Lomb–Scargle
+periodogram of each band alone recovers the published period (or half of it, for the
+eclipsing binaries) within 0.1 % for 18 of the 20 positives in V and 17 in g. Both miss the
+55.5-day SR and the 12.09-day ROT by 0.1–0.6 %, and g also misses the 42.25-day SR,
+finding a 0.4994-day alias of the daily sampling instead. Both bands find the true period
+of both alias traps, not the published one. A star's median V and g magnitudes differ by
+0.0–0.8, so the two are never merged into one Light Curve.
+
+| Star | G | V points | V years | g points | g years |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| NSVS 2887379 | 13.91 | 323 | 5.9 | 716 | 7.6 |
+| ASASSN-V J164726.16+724659.3 | 14.84 | 298 | 4.6 | 653 | 7.7 |
+| LINEAR 20427289 | 15.34 | 295 | 4.7 | 592 | 7.7 |
+| ASASSN-V J163706.32+633921.6 | 14.73 | 818 | 4.7 | 1,781 | 7.7 |
+| DW Dra | 13.04 | 644 | 6.1 | 1,452 | 7.7 |
+| T-Dra0-09947 | 15.08 | 339 | 6.5 | 649 | 7.4 |
+| 1SWASP J191601.56+560055.3 | 13.60 | 892 | 6.0 | 1,811 | 7.7 |
+| CSS_J173907.6+550053 | 14.69 | 338 | 5.9 | 598 | 7.3 |
+| V0364 Dra | 14.85 | 295 | 4.7 | 591 | 7.7 |
+| V0502 Dra | 14.92 | 297 | 4.6 | 649 | 7.7 |
+| ASASSN-V J163919.05+740125.0 | 15.08 | 295 | 4.5 | 662 | 7.7 |
+| V0379 Dra | 13.33 | 583 | 4.7 | 1,421 | 7.7 |
+| ASASSN-V J164540.98+652508.2 | 15.07 | 279 | 4.6 | 490 | 7.3 |
+| ASASSN-V J170333.89+604850.1 | 13.38 | 316 | 5.9 | 708 | 7.7 |
+| V0553 Dra | 13.78 | 545 | 4.7 | 1,150 | 7.7 |
+| KO Cep | 13.06 | 170 | 3.9 | 447 | 7.1 |
+| ASASSN-V J194707.50+750321.7 | 13.93 | 549 | 4.7 | 1,718 | 7.7 |
+| ASASSN-V J192915.72+664402.8 | 13.10 | 258 | 4.7 | 467 | 7.7 |
+| ASASSN-V J164537.58+592828.7 | 14.34 | 256 | 5.2 | 551 | 7.7 |
+| ASASSN-V J183551.48+614330.1 | 15.19 | 650 | 6.0 | 1,435 | 7.7 |
+| PS1-3PI J190107.42+492456.3 | 15.17 | 336 | 6.0 | 582 | 7.7 |
+| CSS_J181701.4+514940 | 14.41 | 323 | 6.0 | 982 | 7.7 |
+| CSS_J160212.7+530724 | 15.70 | 313 | 6.5 | 591 | 7.4 |
+| CSS_J172350.6+504650 | 14.48 | 295 | 5.9 | 581 | 7.3 |
+| Gaia DR3 1435854639894380800 | 13.66 | 323 | 5.9 | 715 | 7.6 |
+| Gaia DR3 1434111643382583936 | 13.96 | 648 | 5.6 | 1,271 | 7.7 |
+| Gaia DR3 1435683567052954368 | 15.01 | 855 | 5.3 | 1,743 | 7.7 |

@@ -41,9 +41,6 @@ stars take about three minutes together.
   tracker. That is part 2 of the guide (NEU-1801), written once those exist.
 - **Type classification** beyond what a type means. The classifier rules arrive in
   milestone 4.
-- **ASAS-SN evidence.** Sky Patrol was down while the fixtures were built, so ASAS-SN is a
-  coverage gap in every figure here. Chapter 3 says where it will appear once NEU-1796
-  adds it.
 
 Terms in **bold** on first use are the project's shared vocabulary, defined in
 [`CONTEXT.md`](../../CONTEXT.md). The technical contract behind every section is the

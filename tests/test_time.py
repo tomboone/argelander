@@ -6,11 +6,12 @@ Every conversion is checked against a value derived without the code under test,
 - ZTF and ASAS-SN against barycorrpy's published UTC → BJD_TDB reference for τ Ceti
   (Kanodia & Wright 2018, RNAAS 2, 4; test_JDUTC_BJDTDB in its suite), an independent
   implementation of the Wright & Eastman (2014) barycentric correction on JPL DE430.
-  ASAS-SN's input HJD comes from the Astronomical Almanac's low-precision Sun, not astropy.
+  ASAS-SN Sky Patrol reports a UTC JD with no light-travel correction, as ZTF does.
 
 The astropy round trips then check the same functions to a millisecond. The one conversion
-the other way, BJD_TDB → HJD for VSX's epoch, is checked against the same references and as
-the inverse of the ASAS-SN conversion.
+the other way, BJD_TDB → HJD for VSX's epoch, is checked against the same reference, with
+the HJD built from the Astronomical Almanac's low-precision Sun rather than astropy, and
+against astropy's heliocentric correction.
 """
 
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from astropy.coordinates import EarthLocation, SkyCoord
 from astropy.time import Time
 
 from argelander.analysis.time import (
-    asassn_hjd_to_bjd_tdb,
+    asassn_jd_to_bjd_tdb,
     bjd_tdb_to_hjd,
     gaia_tcb_to_bjd_tdb,
     tess_btjd_to_bjd_tdb,
@@ -91,9 +92,10 @@ def test_ztf_matches_barycorrpy_reference() -> None:
 
 def test_asassn_matches_barycorrpy_reference() -> None:
     ra, dec = tau_ceti_icrs_at(REF_JD_UTC)
-    hjd = almanac_hjd(REF_JD_UTC, ra, dec)
 
-    bjd = asassn_hjd_to_bjd_tdb(np.array([hjd]), ra, dec)
+    bjd = asassn_jd_to_bjd_tdb(np.array([REF_JD_UTC]), ra, dec)
+
+    # The geocentre vs CTIO moves the correction by under 0.05 s.
 
     assert bjd[0] == pytest.approx(REF_BJD_TDB, abs=ONE_SECOND)
 
@@ -143,7 +145,21 @@ def test_tess_and_ztf_agree_on_the_same_instant() -> None:
     )
 
 
-def test_asassn_inverts_astropys_heliocentric_correction() -> None:
+def test_asassn_applies_astropys_barycentric_correction_from_the_geocentre() -> None:
+    ra, dec = 268.5, 61.2
+    geocentre = EarthLocation.from_geocentric(0, 0, 0, unit=u.m)
+    t = Time(
+        np.array([2457000.3, 2458500.8, 2460300.1]), format="jd", scale="utc", location=geocentre
+    )
+    target = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
+    bjd = (t.tdb + t.light_travel_time(target, kind="barycentric", ephemeris="builtin")).jd
+
+    np.testing.assert_allclose(
+        asassn_jd_to_bjd_tdb(t.jd, ra, dec), bjd, rtol=0, atol=ONE_MILLISECOND
+    )
+
+
+def test_hjd_applies_astropys_heliocentric_correction() -> None:
     ra, dec = 268.5, 61.2
     geocentre = EarthLocation.from_geocentric(0, 0, 0, unit=u.m)
     t = Time(
@@ -153,19 +169,9 @@ def test_asassn_inverts_astropys_heliocentric_correction() -> None:
     hjd = t.jd + t.light_travel_time(target, kind="heliocentric", ephemeris="builtin").to_value(
         u.day
     )
-    bjd = (t.tdb + t.light_travel_time(target, kind="barycentric", ephemeris="builtin")).jd
 
     np.testing.assert_allclose(
-        asassn_hjd_to_bjd_tdb(hjd, ra, dec), bjd, rtol=0, atol=ONE_MILLISECOND
-    )
-
-
-def test_hjd_round_trips_the_asassn_conversion() -> None:
-    ra, dec = 268.5, 61.2
-    hjd = np.array([2457000.3, 2458500.8, 2460300.1])
-
-    np.testing.assert_allclose(
-        bjd_tdb_to_hjd(asassn_hjd_to_bjd_tdb(hjd, ra, dec), ra, dec),
+        bjd_tdb_to_hjd(asassn_jd_to_bjd_tdb(t.jd, ra, dec), ra, dec),
         hjd,
         rtol=0,
         atol=ONE_MILLISECOND,
@@ -194,7 +200,7 @@ def test_gaia_inverts_astropys_tdb_to_tcb() -> None:
         lambda t: ztf_mjd_to_bjd_tdb(t + 57000.0, 268.5, 61.2),
         lambda t: tess_btjd_to_bjd_tdb(t + 1500.0),
         lambda t: gaia_tcb_to_bjd_tdb(t + 2000.0),
-        lambda t: asassn_hjd_to_bjd_tdb(t + 2457000.0, 268.5, 61.2),
+        lambda t: asassn_jd_to_bjd_tdb(t + 2457000.0, 268.5, 61.2),
         lambda t: bjd_tdb_to_hjd(t + 2457000.0, 268.5, 61.2),
     ],
     ids=["ztf", "tess", "gaia", "asassn", "hjd"],

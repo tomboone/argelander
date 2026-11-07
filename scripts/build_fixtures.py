@@ -6,7 +6,7 @@ trims each Light Curve to at most `MAX_POINTS` points, writes it to
 `tests/fixtures/lightcurves/{survey}/{gaia_source_id}/{band}.parquet` (the Cache layout), and
 records in the star's `coverage` which bands each survey returned. A survey that has no
 data for a star records `[]`, the coverage gap. A survey whose fetch fails keeps the
-coverage it had, so ASAS-SN stays `pending` while Sky Patrol is down (NEU-1764).
+coverage it had, so a survey never fetched stays `pending` while its archive is down.
 
 `--catalog` records the Gaia catalog join for every manifest star instead: the four query
 results as VOTables in `tests/fixtures/catalog/`, from which the prototype gate (NEU-1711)

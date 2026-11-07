@@ -5,8 +5,17 @@ what to look at when something goes wrong. Every command runs in the `app` conta
 (`docker compose exec app …`), as the Taskfile does. The example output is from the first
 end-to-end run, Draco 13–16, on 2026-10-21 (NEU-1722).
 
-The prod stack on the Mac mini runs the same commands against its own services; section 10
-says how it differs.
+The prod stack on the Mac mini runs the same `argelander` commands, but it has no `app`
+service: there, run them in the fetcher's container instead, from `~/argelander/deploy`.
+
+```sh
+docker compose exec fetcher argelander status   # on the mini; `exec app` on the dev stack
+```
+
+The `task` commands in sections 1, 3 and 9 are for the dev stack only; section 10 says how
+prod is started and kept up to date. The prod database has its own Slices, and a Slice
+selected on the dev stack is not there: check with `SELECT name FROM slices` before naming
+one.
 
 ## 1. Bring the stack up
 
@@ -69,8 +78,22 @@ done, so stopping it mid-batch leaves ten claimed Jobs that `release_stale` hand
 30 minutes (spec §3).
 
 Pace on 2026-10-21, on the dev laptop: about five minutes per batch of ten Targets for the
-fetcher, TESS setting the pace, and about 20 seconds per Target for the analyzer. The fetcher
-is the bottleneck; the full 430-Target Slice is about 3.5 hours.
+fetcher, TESS setting the pace; the full 430-Target Slice is about 3.5 hours of fetching.
+
+The analyzer's pace is set by the Target's TESS Light Curve. On the mini, 2026-11-03, at
+Pipeline Version 0.1.0: about 85 seconds per Target plus 1.8 seconds per 1,000 TESS points,
+which for Dra-13-16 (inside TESS's continuous viewing zone, up to 254,000 points) averaged
+7 minutes per Target. 0.2.0 bins TESS to 10 minutes before the period search (NEU-2187),
+cutting its points three- to fivefold. Measured on the mini, 2026-11-04, over the first 51
+Dra-13-16 Analyses at 0.2.0: 4 minutes per Target on average, from about 2.7 minutes at
+51k–99k TESS points to about 5.3 at 250k, roughly 40 % less than 0.1.0 at the same size. The
+rest of the Slice runs at about 15 Targets an hour.
+
+Where that time goes (NEU-2190, the Slice's largest TESS curve, 471k points): 325 s in all,
+212 s of it BLS on TESS, whose cost is its binned points times its trial periods; then BLS
+on the other surveys (71 s), Lomb-Scargle (21 s) and the plots (18 s). To profile a Target
+step by step, read-only and beside the running analyzer, use `scripts/profile_target.py`; its
+docstring has the commands for the mini.
 
 ## 4. Watch progress
 
@@ -293,13 +316,14 @@ The `backup` service dumps Postgres to Backblaze B2 with restic every night at 0
 drill and a real restore. It needs four more variables in the mini's `.env` and refuses to
 start without them.
 
-The CLI runs in the fetcher's container (`docker compose exec fetcher argelander status`),
-since prod has no `app` service. Logs are Docker's json-file driver, rotated at 5 × 10 MB per
-service.
+The CLI runs in the fetcher's container (`docker compose exec fetcher argelander …`), since
+prod has no `app` service; that goes for every `argelander` command in sections 2 and 4–8.
+Logs are Docker's json-file driver, rotated at 5 × 10 MB per service.
 
 ## The first run, 2026-10-21
 
-Draco 13–16, 430 Targets, Pipeline Version 0.1.0. The workers ran for about 30 minutes,
+On the dev stack, not the mini: as of 2026-11-02 the prod database holds no Slices. Draco
+13–16, 430 Targets, Pipeline Version 0.1.0. The workers ran for about 30 minutes,
 until 60 Targets had Proposals, then the fetcher was stopped mid-batch and the analyzer
 left to drain: the `status` output in section 4 is the end state, ten fetch Jobs still
 claimed. `recompute-status` changed nothing.
@@ -314,8 +338,9 @@ claimed. `recompute-status` changed nothing.
 Every ASAS-SN failure is the same: Sky Patrol's `get_block_servers` answers `[]`, the
 maintenance outage `fetch/asassn.py` has recorded since 2026-10-13, so each call gives up after
 its retries (`FetchError: asassn: gave up after 3 attempts; last failure: connection error`).
-A fetch Job fails only when every survey fails, so no Job failed. Once Sky Patrol is back,
-`enqueue fetch --slice Dra-13-16` fetches it for every Target.
+A fetch Job fails only when every survey fails, so no Job failed. Sky Patrol was back by
+2026-11-02 (NEU-1764); `enqueue fetch --slice Dra-13-16` on the dev stack fetches it for every
+Target.
 
 | Proposed type | Proposals | Mean Confidence | With Agreement |
 | --- | --- | --- | --- |

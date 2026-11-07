@@ -55,7 +55,8 @@ _Avoid_: version, revision
 **Agreement**:
 The condition for accepting a period: at least two independent sources among
 ZTF g, ZTF r, ASAS-SN, TESS and Gaia's published period agree after alias tests. A
-source from a survey the blend check finds contaminated counts as half a source.
+source from a survey the blend check finds contaminated counts as half a source, and
+at least one of the agreeing sources must be clean.
 _Avoid_: consensus, match
 
 ### Proposals and review
@@ -64,6 +65,15 @@ _Avoid_: consensus, match
 The classifier's candidate VSX revision for one Target: type, period, epoch,
 magnitude range with band, and confidence, with the Analysis it rests on.
 _Avoid_: classification, prediction, result, candidate
+
+**Range band**:
+The Light Curve a Proposal's magnitude range and band are read from, and that
+`submission.png` leads with: ASAS-SN V when it has enough points and ASAS-SN is
+not contaminated, else the epoch band.
+
+**Epoch band**:
+The Light Curve a Proposal's epoch and eclipse duration are read from: the most
+points among magnitude bands with a VSX passband.
 
 **Confidence**:
 The classifier's 0–1 score for a Proposal, built from explainable rule evidence.

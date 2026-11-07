@@ -1,5 +1,6 @@
 """The light curve's shape at the agreed period, and its variability (spec §7, NEU-1720)."""
 
+import dataclasses
 from collections.abc import Callable
 
 import numpy as np
@@ -186,6 +187,19 @@ def test_a_variable_star_spreads_beyond_its_errors() -> None:
     measured = variability([curve(sinusoid(0.5), noise=0.01)], ())
     assert measured is not None
     assert measured.excess > 10
+
+
+def test_variability_skips_asassn_whose_errors_understate_its_scatter() -> None:
+    """ASAS-SN's reported errors are 1.8-3.2 times smaller than the scatter of the fixtures'
+    constant stars (NEU-1796), so measured against them a constant star varies."""
+    flat = dataclasses.replace(
+        curve(lambda phase: np.zeros_like(phase), noise=0.025, survey="asassn"),
+        error=np.full(600, 0.008),
+    )
+    assert variability([flat], ()) is None
+    measured = variability([flat, curve(lambda phase: np.zeros_like(phase), noise=0.01)], ())
+    assert measured is not None
+    assert measured.survey == "ztf"
 
 
 def test_variability_skips_contaminated_surveys() -> None:

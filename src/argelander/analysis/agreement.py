@@ -26,7 +26,9 @@ puts the same aliases into both.
 
 A survey the blend checks found contaminated (spec §6 step 7) counts as half a source:
 its period may be a neighbour's, so the sources at a period must weigh as much as two clean
-ones: a contaminated source and one clean source are not enough.
+ones: a contaminated source and one clean source are not enough. At least one of them must be
+clean, too: four contaminated sources weigh two, but every one of them may be seeing the same
+neighbour, and on the fixture blends all four agree on the neighbour's period (NEU-1796).
 
 When two periods are found by equally many sources the sources disagree, and nothing is
 accepted. The rule of the bulk imports, taking the single highest periodogram peak, is how
@@ -43,7 +45,9 @@ TOLERANCE = 1e-3  # 0.1 %
 GAIA_BASELINE = 1038.0
 # Phase dispersion above which a band's best fold explains too little to be a period. Set on
 # the prototype fixtures (NEU-1711): every positive's voting band folds at 0.71 or less, every
-# constant star's ZTF bands at 0.82 or more.
+# constant star's ZTF bands at 0.82 or more. That no longer holds for the constants: since
+# NEU-1839's coarse-to-fine BLS, Gaia DR3 1435683567052954368's ZTF g band settles on the 1-day
+# alias of a BLS peak at 0.60 and votes. It votes alone, so the two-source rule keeps it out.
 MAX_SCATTER = 0.75
 SOURCES = ("ztf_g", "ztf_r", "asassn", "tess", "gaia_published")
 # The survey each source's photometry comes from, as in `LightCurve.survey`.
@@ -96,7 +100,8 @@ def agreement(
     gaia_period: float | None = None,
     contaminated: Collection[str] = (),
 ) -> Agreement | None:
-    """The period most sources agree on, if at least two do and no other period ties it.
+    """The period most sources agree on, if at least two do, one of them clean, and no other
+    period ties it.
 
     `contaminated` names the surveys whose sources count at half weight (`Blend.surveys`).
     """
@@ -121,7 +126,7 @@ def agreement(
         elif {v.source for v in at_short} <= {v.source for v in at_long}:
             at_short = []
         names = {v.source for v in at_short + at_long}
-        if weight(names) < MIN_WEIGHT:
+        if weight(names) < MIN_WEIGHT or all(SURVEYS[n] in contaminated for n in names):
             continue
         if at_short and at_long:
             periods = [2 * v.period for v in at_short] + [v.period for v in at_long]

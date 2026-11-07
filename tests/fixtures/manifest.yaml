@@ -19,7 +19,7 @@
 #   blend_host        blends only: the variable whose light falls in the star's aperture
 #   coverage          per survey, the bands written to lightcurves/: a list of bands; [] when
 #                     the survey has no data for the star (a coverage gap); "pending" when
-#                     the survey has not been fetched yet (ASAS-SN until NEU-1796)
+#                     the survey has not been fetched yet
 #
 # How the set was chosen, on 2026-10-20:
 #   Positives are VSX entries in Draco (or, for the Cepheid, neighbouring Cepheus) with
@@ -61,7 +61,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J164726.16+724659.3
   gaia_source_id: 1653832652598729856
   published_period: 0.300852
@@ -82,7 +84,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: LINEAR 20427289
   gaia_source_id: 1419291291792064896
   published_period: 0.31915
@@ -103,7 +107,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J163706.32+633921.6
   gaia_source_id: 1628869340601939968
   published_period: 1.303237
@@ -124,7 +130,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: DW Dra
   gaia_source_id: 2261785926184018944
   published_period: 1.22625
@@ -145,7 +153,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: T-Dra0-09947
   gaia_source_id: 1432149186925958272
   published_period: 0.4098204
@@ -166,7 +176,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: 1SWASP J191601.56+560055.3
   gaia_source_id: 2141102808365310080
   published_period: 0.3220202
@@ -187,7 +199,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: CSS_J173907.6+550053
   gaia_source_id: 1418010841782026880
   published_period: 0.4858496
@@ -208,7 +222,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: V0364 Dra
   gaia_source_id: 1418837846324865664
   published_period: 0.477038
@@ -229,7 +245,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: V0502 Dra
   gaia_source_id: 1652015984511510656
   published_period: 0.480127
@@ -250,7 +268,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J163919.05+740125.0
   gaia_source_id: 1654934225810791936
   published_period: 0.488969
@@ -271,7 +291,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: V0379 Dra
   gaia_source_id: 1439840098963073152
   published_period: 0.35762
@@ -292,7 +314,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J164540.98+652508.2
   gaia_source_id: 1635300040515480448
   published_period: 0.424478
@@ -313,7 +337,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J170333.89+604850.1
   gaia_source_id: 1438034941388614528
   published_period: 0.0503201
@@ -334,7 +360,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: V0553 Dra
   gaia_source_id: 1636244761522048128
   published_period: 0.1719812
@@ -355,7 +383,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: KO Cep
   gaia_source_id: 2198341184695523712
   published_period: 4.55809
@@ -376,7 +406,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J194707.50+750321.7
   gaia_source_id: 2288381085234276352
   published_period: 55.5
@@ -397,7 +429,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J192915.72+664402.8
   gaia_source_id: 2260814576379793536
   published_period: 42.25
@@ -415,7 +449,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J164537.58+592828.7
   gaia_source_id: 1432033222808979712
   published_period: 12.088
@@ -433,7 +469,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: ASASSN-V J183551.48+614330.1
   gaia_source_id: 2159656723485147008
   published_period: 2.53156
@@ -454,7 +492,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: PS1-3PI J190107.42+492456.3
   gaia_source_id: 2132024209574880896
   published_period: 0.462874
@@ -479,7 +519,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: CSS_J181701.4+514940
   gaia_source_id: 2124506195738792448
   published_period: 0.446574
@@ -504,7 +546,9 @@
     - BP
     - G
     - RP
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: CSS_J160212.7+530724
   gaia_source_id: 1404819657186292352
   published_period: 0.318016
@@ -529,7 +573,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: CSS_J172350.6+504650
   gaia_source_id: 1414806246422607104
   published_period: 0.270084
@@ -554,7 +600,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: Gaia DR3 1435854639894380800
   gaia_source_id: 1435854639894380800
   published_period: null
@@ -574,7 +622,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: Gaia DR3 1434111643382583936
   gaia_source_id: 1434111643382583936
   published_period: null
@@ -594,7 +644,9 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
 - star: Gaia DR3 1435683567052954368
   gaia_source_id: 1435683567052954368
   published_period: null
@@ -614,4 +666,6 @@
     tess:
     - T
     gaia: []
-    asassn: pending
+    asassn:
+    - V
+    - g
