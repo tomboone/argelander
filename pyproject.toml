@@ -96,8 +96,11 @@ options = "check --fix REVISION_SCRIPT_FILENAME"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--strict-markers"]
+# A bare `pytest` (what CI's shared python workflow runs) deselects the archive and prototype-gate
+# tests. A `-m` on the command line replaces this one: CI's `gate` job passes `-m gate`, and
+# `task test` and the pre-push hook pass `-m "not live"`, so they still run the gate.
+addopts = ["--strict-markers", "-m", "not live and not gate"]
 markers = [
-    "live: hits external archives (ZTF, MAST, Gaia, ASAS-SN); skipped in CI with -m 'not live'",
+    "live: hits external archives (ZTF, MAST, Gaia, ASAS-SN); never run in CI",
     "gate: runs every fixture star through the pipeline (the prototype gate); its own CI job",
 ]

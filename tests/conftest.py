@@ -14,7 +14,7 @@ GAIA_FIXTURES = Path(__file__).parent / "fixtures" / "gaia"
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Fail any `live` test that runs in CI, where `-m "not live"` should have dropped it.
+    """Fail any `live` test that runs in CI, where pyproject's `addopts` should drop it.
 
     GitHub Actions sets `CI=true`. If the marker filter ever stops excluding `live` tests, the
     run fails loudly instead of letting real archive calls slip onto GitHub's runners.
@@ -35,8 +35,8 @@ def recorded_gaia() -> dict[int, GaiaRecord]:
 
 # The database tests migrate a throwaway database beside the configured one (`<name>_test`),
 # so the dev database is never touched. They need DATABASE_URL: the dev stack's app container
-# has it, and CI runs a Postgres service for them. Outside CI they skip without it. Each test
-# module gets its own fresh database.
+# has it, and CI runs a Postgres service for them (URL in .github/ci/env). Outside CI they skip
+# without it. Each test module gets its own fresh database.
 
 
 def _configured_url() -> str:
@@ -44,7 +44,7 @@ def _configured_url() -> str:
         return os.environ["DATABASE_URL"]
     except KeyError:
         if os.environ.get("CI") == "true":
-            pytest.fail("DATABASE_URL is unset in CI; the job's Postgres service sets it")
+            pytest.fail("DATABASE_URL is unset in CI; .github/ci/env sets it")
         pytest.skip("needs DATABASE_URL (run inside the dev stack)")
 
 
