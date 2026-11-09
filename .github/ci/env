@@ -1,0 +1,4 @@
+# Loaded into the python job's environment by the shared python.yml. Test-only values, never secrets.
+# The service's own credentials and database. The Alembic drift check migrates it; the database
+# tests (tests/conftest.py) create `postgres_test` beside it.
+DATABASE_URL=postgresql+psycopg://root:root@localhost:5432/postgres

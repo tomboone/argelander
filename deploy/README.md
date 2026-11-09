@@ -18,7 +18,7 @@ for recovery. Tom runs the one-time host steps below by hand, since they need `s
 | Argelander's part of it | `/mnt/music/argelander`, bind-mounted at `/mnt/argelander` (`USB_ROOT`): `cache/`, `plots/`, `astropy/` |
 | Docker waits for it | `/etc/systemd/system/docker.service.d/argelander-usb.conf` |
 | The review app's sidecar | `deploy/tailscale.md` |
-| Published images | `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup`, tagged `latest` (what the mini runs) and `sha-<7>` (for pinning a commit), pushed by `.github/workflows/image.yml` on every push to `main`. Both packages are public, so the mini pulls them anonymously |
+| Published images | `ghcr.io/tomboone/argelander` and `ghcr.io/tomboone/argelander-backup`, tagged `latest` (what the mini runs) and `sha-<7>` (for pinning a commit), pushed by the `publish` job in `.github/workflows/ci.yml` on every push to `main`, once `ci` has passed on that commit. Both packages are public, so the mini pulls them anonymously |
 | Updates | the `watchtower` service, scoped to `argelander` (*Updates* below) |
 
 ## Why a bind mount of its own

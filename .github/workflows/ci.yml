@@ -1,98 +1,62 @@
-name: CI
+name: ci
 
-# Lint, format, typecheck, offline tests, the Alembic single-head check and the image build
-# (spec §11). Runs on a GitHub-hosted runner straight from uv, not inside the built image:
-# that would be slower for no extra coverage at this stage. Tests marked `live` hit the
-# archives and never run here. Tests marked `gate` (the prototype gate) run in the `gate`
-# job alongside `ci`, because they take over ten minutes on a hosted runner.
+# Calls the shared workflows in neuroticsasquat-ch/workflows (ops spec "Shared CI workflows";
+# this repo's spec §11). Runs on a GitHub-hosted runner straight from uv, not inside the built
+# image. Tests marked `live` hit the archives and never run here; tests marked `gate` (the
+# prototype gate) run in the `gate` job, because they take minutes. pyproject's `addopts`
+# deselects both, so the shared workflow's bare `pytest` runs the offline tests.
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-    # updates/dependencies is the Dependabot integration branch (spec §12).
-    branches: [main, updates/dependencies]
-
-permissions:
-  contents: read
 
 # A newer push to a PR cancels its older run. Each push to main gets a group of its own, so a
-# second merge inside the gate's ten minutes cannot drop the first one's run (GitHub keeps only
-# one pending run per group).
+# second merge inside the gate's run cannot drop the first one's run (GitHub keeps only one
+# pending run per group).
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
-  ci:
-    runs-on: ubuntu-latest
+  # uv sync, ruff check, ruff format --check, ty check, the Alembic head and drift checks,
+  # pytest. Scope, markers and options live in pyproject.toml; DATABASE_URL comes from
+  # .github/ci/env. tests/test_db.py migrates a throwaway database beside it.
+  python:
+    uses: neuroticsasquat-ch/workflows/.github/workflows/python.yml@v1
+    with:
+      postgres: "16"
+      typechecker: ty
 
-    # tests/test_db.py migrates a throwaway database beside this one and checks the models
-    # against the migrations (`alembic check`), so the job needs a real Postgres.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: argelander
-          POSTGRES_PASSWORD: argelander
-          POSTGRES_DB: argelander
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U argelander -d argelander"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql+psycopg://argelander:argelander@localhost:5432/argelander
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        # uv reads the interpreter from .python-version (3.12). setup-uv publishes no
-        # floating major tags from v8 on, so pin the full release.
-        uses: astral-sh/setup-uv@v10.3.3
-
-      - name: Sync dependencies
-        # --locked fails if uv.lock is out of date with pyproject.toml.
-        run: uv sync --locked
-
-      - name: Lint
-        run: uv run ruff check
-
-      - name: Format check
-        run: uv run ruff format --check
-
-      - name: Typecheck
-        run: uv run ty check
-
-      - name: Test
-        run: uv run pytest -m "not live and not gate"
-
-      - name: Alembic single-head check
-        run: |
-          out=$(uv run alembic heads)
-          heads=$(printf '%s\n' "$out" | grep -c '(head)' || true)
-          echo "$out"
-          if [ "$heads" -gt 1 ]; then
-            echo "::error::Alembic has $heads heads; merge them with 'alembic merge heads'."
-            exit 1
-          fi
-
-      - name: Docker build
-        run: docker build --tag argelander:ci .
-
-      - name: Backup image build
-        # Otherwise its first build is on the mini, at deploy time (deploy/restore.md).
-        run: docker build --tag argelander-backup:ci deploy/backup
+  # Builds each image without pushing and checks it doesn't run as root. The backup image is
+  # built here so its first build is never on the mini at deploy time (deploy/restore.md).
+  image:
+    strategy:
+      # One image failing must not cancel the other's build.
+      fail-fast: false
+      # The app's target is named, rather than relying on `prod` being the last stage. The
+      # backup Dockerfile has one stage.
+      matrix:
+        include:
+          - name: argelander
+            context: .
+            target: prod
+          - name: argelander-backup
+            context: deploy/backup
+            target: ""
+    uses: neuroticsasquat-ch/workflows/.github/workflows/image-check.yml@v1
+    with:
+      name: ${{ matrix.name }}
+      context: ${{ matrix.context }}
+      target: ${{ matrix.target }}
 
   gate:
     # The prototype gate (spec §11): every fixture star through the pipeline. On a PR it runs
     # only when something it could catch has changed. The job itself always runs and reports,
-    # so a docs-only PR still gets a green `gate` check: a skipped or missing check would block
-    # a required-check rule and /mergeit's CI gate alike (NEU-1838).
+    # so a docs-only PR still gets a green `gate` (NEU-1838), and `ci` never sees it skipped.
     runs-on: ubuntu-latest
 
     steps:
@@ -100,6 +64,7 @@ jobs:
         with:
           # The whole history, so the PR's merge base with its target is present.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Decide whether the science can have changed
         id: scope
@@ -114,19 +79,21 @@ jobs:
           fi
           # What the gate's result can depend on: the package, the fixtures, the gate test
           # and its conftest, and the dependencies.
-          paths="src tests/fixtures tests/test_prototype.py tests/conftest.py pyproject.toml uv.lock"
-          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" -- $paths)
+          paths=(src tests/fixtures tests/test_prototype.py tests/conftest.py pyproject.toml uv.lock)
+          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" -- "${paths[@]}")
           if [ -n "$changed" ]; then
             echo "Running the gate; this PR changes:"
             echo "$changed"
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Skipping the gate: this PR changes none of: $paths"
+            echo "Skipping the gate: this PR changes none of: ${paths[*]}"
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install uv
         if: steps.scope.outputs.run == 'true'
+        # uv reads the interpreter from .python-version. setup-uv publishes no floating major
+        # tags from v8 on, so pin the full release.
         uses: astral-sh/setup-uv@v10.3.3
 
       - name: Sync dependencies
@@ -135,5 +102,42 @@ jobs:
 
       - name: Prototype gate
         if: steps.scope.outputs.run == 'true'
-        # -v names each star's case in the log.
+        # `-m gate` replaces addopts' `-m "not live and not gate"`. -v names each star's case
+        # in the log.
         run: uv run pytest -m gate -v
+
+  ci: # the one required check; the name is the contract
+    if: always()
+    needs: [python, image, gate] # every other job, extras included
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neuroticsasquat-ch/workflows/actions/gate@v1
+        with:
+          needs: ${{ toJSON(needs) }}
+
+  # main → latest and sha-<7> for each image, only after ci passed on that commit. Watchtower
+  # on the mini deploys latest.
+  publish:
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.ci.result == 'success' }}
+    needs: ci
+    strategy:
+      # One image failing must not cancel the other's publish mid-push.
+      fail-fast: false
+      matrix:
+        include:
+          - name: argelander
+            context: .
+            target: prod
+          - name: argelander-backup
+            context: deploy/backup
+            target: ""
+    # The image is part of the group, so the two images don't queue behind each other, and a
+    # third run can't replace the other image's pending one.
+    concurrency: { group: "publish-${{ github.ref }}-${{ matrix.name }}", cancel-in-progress: false }
+    permissions: { contents: read, packages: write }
+    uses: neuroticsasquat-ch/workflows/.github/workflows/image-publish.yml@v1
+    with:
+      image: ghcr.io/tomboone/${{ matrix.name }}
+      name: ${{ matrix.name }}
+      context: ${{ matrix.context }}
+      target: ${{ matrix.target }}

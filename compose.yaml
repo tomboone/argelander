@@ -39,7 +39,7 @@ x-usb: &usb
     create_host_path: false
 
 # One image, one package (spec §3): each service is the prod image with its own command. The
-# image is pulled from GHCR, published by .github/workflows/image.yml on every push to main;
+# image is pulled from GHCR, published by .github/workflows/ci.yml on every push to main once `ci` passes;
 # compose.dev.yaml builds it locally instead. IMAGE_TAG pins a `sha-<7>` tag to roll back
 # (deploy/README.md).
 x-app: &app

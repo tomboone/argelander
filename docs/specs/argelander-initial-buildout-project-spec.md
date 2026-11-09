@@ -1234,6 +1234,21 @@ from the grilling session:
   `tests/conftest.py`, `pyproject.toml` or `uv.lock`, and otherwise succeeds without running
   them; on a push to `main` it always runs them, each push in its own concurrency group. The job always reports, so the check exists on every PR.
   `task test` and the pre-push hook still run everything, gate included.
+
+  *Amended 2026-11-09 (NEU-2245):* CI calls the shared workflows in
+  `neuroticsasquat-ch/workflows@v1` (ops spec *Shared CI workflows*), which wins where it
+  and this section disagree. `.github/workflows/ci.yml` runs on every PR and on push to
+  `main`. Its `python` job (shared `python.yml`, Postgres 16, `typechecker: ty`) runs
+  `ruff check`, `ruff format --check`, `ty check`, the Alembic single-head and drift checks
+  (`alembic upgrade head && alembic check`) and a bare `pytest`; `DATABASE_URL` comes from
+  `.github/ci/env`. The marker filter moved into pyproject's `addopts`
+  (`-m "not live and not gate"`); a `-m` on the command line replaces it, so the `gate` job
+  passes `-m gate` and `task test` and the pre-push hook still pass `-m "not live"`. Its
+  `image` job builds both images (`argelander` at target `prod`, `argelander-backup` at
+  `deploy/backup`) from a matrix and checks neither runs as root. The `gate` job keeps
+  its scope logic and always reports. The one required check is the aggregate `ci`, which needs all three. The
+  `publish` job replaces `image.yml`: it pushes both images to GHCR from `main` only after
+  `ci` passed on that commit.
 - Pre-commit hooks all run inside the `app` container, never on the host, following the
   pattern of the other container-based repos (music-discovery-engine is the template): the
   Homebrew-installed pre-commit framework is the orchestrator only, and every hook is
@@ -1261,6 +1276,16 @@ workflow merges `main` into `updates/dependencies` through a PR so Dependabot di
 small; Tom opens the PR from `updates/dependencies` back to `main` when he chooses. CI runs
 on PRs to both branches. The rulesets are the reason every change, including a docs edit,
 lands through a PR.
+
+*Amended 2026-11-09 (NEU-2245):* the rulesets, Dependabot config and dependency flow now
+follow the ops spec *Shared CI workflows*. The three rulesets come from the workflows repo's
+single definition, applied by `scripts/apply-rulesets.sh --repo tomboone/argelander`, and
+require the `ci` check on `main` and the integration branches. The weekly merge workflow is
+gone: `.github/workflows/dependencies.yml` calls the shared `dependency-branch.yml` with
+`auto-promote: true`, which keeps `updates/dependencies` current with `main`, auto-merges
+Dependabot PRs into it when `ci` is green, and merges the promotion PR to `main` inside the
+Saturday window unless a guard holds it (a major, red or pending `ci`, a conflict). The
+`github-actions` Dependabot entry ignores `neuroticsasquat-ch/workflows`, which floats on `@v1`.
 
 ## 13. Milestones (confirmed in Phase 2)
 
