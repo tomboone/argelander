@@ -94,7 +94,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         # uv reads the interpreter from .python-version. setup-uv publishes no floating major
         # tags from v8 on, so pin the full release.
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
 
       - name: Sync dependencies
         if: steps.scope.outputs.run == 'true'
